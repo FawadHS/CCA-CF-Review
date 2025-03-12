@@ -22,7 +22,12 @@ function setupEventListeners() {
     const adminLoginForm = document.getElementById('admin-login-form');
     if (adminLoginForm) {
         console.log('Login form found, setting up event listener');
-        adminLoginForm.addEventListener('submit', handleAdminLogin);
+        // This is the critical part - make sure we're preventing default form behavior
+        adminLoginForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+            console.log('Form submit intercepted');
+            handleAdminLogin(event);
+        });
     } else {
         console.error('Admin login form not found!');
     }
@@ -30,7 +35,10 @@ function setupEventListeners() {
     // Add country form submission
     const addCountryForm = document.getElementById('add-country-form');
     if (addCountryForm) {
-        addCountryForm.addEventListener('submit', handleAddCountry);
+        addCountryForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+            handleAddCountry(event);
+        });
     }
 
     // Delete country confirmation
@@ -41,8 +49,7 @@ function setupEventListeners() {
 }
 
 async function handleAdminLogin(event) {
-    event.preventDefault();
-    console.log('Admin login form submitted');
+    console.log('Admin login function called');
 
     // The admin.html form only has a password field, no username field
     // But the API expects both username and password
@@ -205,7 +212,6 @@ function maskPassword(password) {
 }
 
 async function handleAddCountry(event) {
-    event.preventDefault();
     console.log('Add country form submitted');
 
     const countryName = document.getElementById('country-name').value;
@@ -281,7 +287,10 @@ function showDeleteConfirmation(event) {
         deleteModal.show();
     } catch (error) {
         console.error('Error showing delete modal:', error);
-        alert(`Are you sure you want to delete ${countryName}?`);
+        // Fallback if modal doesn't work
+        if (confirm(`Are you sure you want to delete ${countryName}?`)) {
+            confirmDeleteCountry({ dataset: { id: countryId } });
+        }
     }
 }
 

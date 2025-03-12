@@ -29,11 +29,18 @@ function saveAdminSessions(sessions) {
 
 // Admin login route
 router.post('/login', (req, res) => {
+  console.log('Admin login attempt:', req.body);
   const { username, password } = req.body;
+
+  // Verify we have required data
+  if (!username || !password) {
+    console.log('Missing username or password');
+    return res.status(400).json({ success: false, message: 'Username and password required' });
+  }
 
   // Hardcoded credentials for admin login (to be replaced with real logic)
   if (username === 'admin' && password === 'admin123') {
-    const token = 'admin-jwt-token'; // This can be a dynamically generated JWT token
+    const token = 'admin-jwt-token-' + Date.now(); // This can be a dynamically generated JWT token
     const session = { username, token };
 
     // Save the session to admin-sessions.json
@@ -41,14 +48,17 @@ router.post('/login', (req, res) => {
     sessions.push(session);
     saveAdminSessions(sessions);
 
+    console.log('Admin login successful:', { username, token: token.substring(0, 10) + '...' });
     res.status(200).json({ success: true, token });
   } else {
+    console.log('Admin login failed: invalid credentials');
     res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 });
 
 // Route to add a new country
 router.post('/countries', (req, res) => {
+  console.log('Add country request:', req.body);
   const { name, password } = req.body;
 
   if (!name || !password) {
@@ -74,13 +84,20 @@ router.post('/countries', (req, res) => {
   // Save the updated countries list
   fs.writeFileSync(countriesFilePath, JSON.stringify({ countries }, null, 2));
 
+  console.log('Country added successfully:', name);
   res.status(200).json({ success: true, message: 'Country added successfully' });
 });
 
 // Route to get all countries (for admin to view them)
 router.get('/countries', (req, res) => {
-  const countries = loadCountries();
-  res.status(200).json({ success: true, countries });
+  try {
+    const countries = loadCountries();
+    console.log('Getting countries, count:', countries.length);
+    res.status(200).json({ success: true, countries });
+  } catch (error) {
+    console.error('Error fetching countries:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch countries' });
+  }
 });
 
 module.exports = router;
