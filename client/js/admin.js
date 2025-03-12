@@ -1,11 +1,16 @@
 // client/js/admin.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Admin page loaded');
+    
     // Check if admin is already logged in
     const adminToken = localStorage.getItem('adminToken');
     if (adminToken) {
+        console.log('Admin token found, showing admin panel');
         showAdminPanel();
         loadCountries();
+    } else {
+        console.log('No admin token, showing login form');
     }
 
     // Set up event listeners
@@ -16,7 +21,10 @@ function setupEventListeners() {
     // Admin login form submission
     const adminLoginForm = document.getElementById('admin-login-form');
     if (adminLoginForm) {
+        console.log('Login form found, setting up event listener');
         adminLoginForm.addEventListener('submit', handleAdminLogin);
+    } else {
+        console.error('Admin login form not found!');
     }
 
     // Add country form submission
@@ -34,17 +42,25 @@ function setupEventListeners() {
 
 async function handleAdminLogin(event) {
     event.preventDefault();
+    console.log('Admin login form submitted');
 
+    // The admin.html form only has a password field, no username field
+    // But the API expects both username and password
     const password = document.getElementById('admin-password').value;
+    
+    if (!password) {
+        alert('Please enter the admin password');
+        return;
+    }
 
     const loginData = {
         username: "admin",  // Username is static in this example
-        password: password, // Get password from the form input
+        password: password  // Get password from the form input
     };
 
-    try {
-        // Show loading indicator or disable button here if needed
+    console.log('Sending login request:', loginData);
 
+    try {
         // Send POST request to the login route
         const response = await fetch('http://localhost:5000/api/admin/login', {
             method: 'POST',
@@ -54,12 +70,15 @@ async function handleAdminLogin(event) {
             body: JSON.stringify(loginData),
         });
 
+        console.log('Login response status:', response.status);
         const result = await response.json();
+        console.log('Login response:', result);
 
         // Handle response after successful login
         if (result.success) {
             // Save token to localStorage
             localStorage.setItem('adminToken', result.token);
+            console.log('Admin login successful, token saved');
 
             // Show admin panel
             showAdminPanel();
@@ -68,43 +87,63 @@ async function handleAdminLogin(event) {
             loadCountries();
         } else {
             // Show error message if login fails
+            console.error('Login failed:', result.message);
             alert(result.message || 'Invalid credentials. Please try again.');
         }
     } catch (error) {
         console.error('Login error:', error);
-        alert('Error logging in. Please try again.');
-    } finally {
-        // Hide loading indicator or enable button here if needed
+        alert('Error connecting to the server. Please ensure the server is running and try again.');
     }
 }
 
 function showAdminPanel() {
+    console.log('Showing admin panel');
     // Hide login form
-    document.getElementById('admin-login').classList.add('d-none');
+    const adminLogin = document.getElementById('admin-login');
+    if (adminLogin) {
+        adminLogin.classList.add('d-none');
+    } else {
+        console.error('Admin login section not found!');
+    }
     
     // Show country management area
-    document.getElementById('country-management').classList.remove('d-none');
+    const countryManagement = document.getElementById('country-management');
+    if (countryManagement) {
+        countryManagement.classList.remove('d-none');
+    } else {
+        console.error('Country management section not found!');
+    }
 }
 
 async function loadCountries() {
+    console.log('Loading countries');
     const adminToken = localStorage.getItem('adminToken');
     if (!adminToken) {
+        console.error('No admin token found');
         return;
     }
 
     try {
         // Show loading indicator
         const tableBody = document.getElementById('countries-table-body');
+        if (!tableBody) {
+            console.error('Countries table body not found!');
+            return;
+        }
+        
         tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Loading countries...</td></tr>';
 
         // Fetch countries from API
+        console.log('Fetching countries from API');
         const response = await fetch('http://localhost:5000/api/admin/countries', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
 
+        console.log('Countries response status:', response.status);
         const result = await response.json();
+        console.log('Countries response:', result);
 
         if (result.success) {
             displayCountries(result.countries);
@@ -113,14 +152,27 @@ async function loadCountries() {
         }
     } catch (error) {
         console.error('Error loading countries:', error);
-        document.getElementById('countries-table-body').innerHTML = 
-            '<tr><td colspan="4" class="text-center text-danger">Error loading countries</td></tr>';
+        const tableBody = document.getElementById('countries-table-body');
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error connecting to the server</td></tr>';
+        }
     }
 }
 
 function displayCountries(countries) {
+    console.log('Displaying countries:', countries);
     const tableBody = document.getElementById('countries-table-body');
+    if (!tableBody) {
+        console.error('Countries table body not found!');
+        return;
+    }
+    
     tableBody.innerHTML = '';
+
+    if (!countries || countries.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No countries found</td></tr>';
+        return;
+    }
 
     countries.forEach(country => {
         const row = document.createElement('tr');
@@ -145,6 +197,7 @@ function displayCountries(countries) {
 
 function maskPassword(password) {
     // Show only the first and last characters, mask the rest
+    if (!password) return '';
     if (password.length <= 2) {
         return password;
     }
@@ -153,6 +206,7 @@ function maskPassword(password) {
 
 async function handleAddCountry(event) {
     event.preventDefault();
+    console.log('Add country form submitted');
 
     const countryName = document.getElementById('country-name').value;
     const countryPassword = document.getElementById('country-password').value;
@@ -169,8 +223,7 @@ async function handleAddCountry(event) {
     }
 
     try {
-        // Show loading indicator or disable button here if needed
-
+        console.log('Adding country:', countryName);
         const response = await fetch('http://localhost:5000/api/admin/countries', {
             method: 'POST',
             headers: {
@@ -183,7 +236,9 @@ async function handleAddCountry(event) {
             }),
         });
 
+        console.log('Add country response status:', response.status);
         const result = await response.json();
+        console.log('Add country response:', result);
 
         if (result.success) {
             alert('Country added successfully!');
@@ -200,27 +255,38 @@ async function handleAddCountry(event) {
     } catch (error) {
         console.error('Error adding country:', error);
         alert('An error occurred while adding the country. Please try again.');
-    } finally {
-        // Hide loading indicator or enable button here if needed
     }
 }
 
 function showDeleteConfirmation(event) {
+    console.log('Delete button clicked');
     const countryId = event.target.dataset.id;
     const countryName = event.target.dataset.name;
     
     // Set the country name in the confirmation modal
-    document.getElementById('delete-country-name').textContent = countryName;
+    const deleteCountryNameElem = document.getElementById('delete-country-name');
+    if (deleteCountryNameElem) {
+        deleteCountryNameElem.textContent = countryName;
+    }
     
     // Store the country ID for deletion
-    document.getElementById('confirm-delete-btn').dataset.id = countryId;
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.dataset.id = countryId;
+    }
     
     // Show the modal
-    const deleteModal = new bootstrap.Modal(document.getElementById('delete-modal'));
-    deleteModal.show();
+    try {
+        const deleteModal = new bootstrap.Modal(document.getElementById('delete-modal'));
+        deleteModal.show();
+    } catch (error) {
+        console.error('Error showing delete modal:', error);
+        alert(`Are you sure you want to delete ${countryName}?`);
+    }
 }
 
 async function confirmDeleteCountry() {
+    console.log('Delete confirmation button clicked');
     const countryId = this.dataset.id;
     const adminToken = localStorage.getItem('adminToken');
     
@@ -237,7 +303,11 @@ async function confirmDeleteCountry() {
         // Simulate API call success
         setTimeout(() => {
             // Hide the modal
-            bootstrap.Modal.getInstance(document.getElementById('delete-modal')).hide();
+            try {
+                bootstrap.Modal.getInstance(document.getElementById('delete-modal')).hide();
+            } catch (error) {
+                console.error('Error hiding modal:', error);
+            }
             
             // Show success message
             alert('Country deleted successfully!');
