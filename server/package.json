@@ -1,19 +1,24 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
+    "start": "node start.js",
+    "dev": "nodemon start.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["survey", "UN", "CCA", "CF"],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "CCA-CF Survey Application Server",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

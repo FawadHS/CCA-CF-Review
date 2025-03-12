@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0" />
     <title>CCA-CF Survey - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="css/styles.css?v=1.0.3" />
+    <link rel="stylesheet" href="css/styles.css" />
     <link rel="icon" href="img/favicon.ico" type="image/x-icon" />
   </head>
   <body>
@@ -90,11 +90,26 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      // Fetch countries dynamically
+      // Show loading message while initializing
+      document.addEventListener('DOMContentLoaded', function() {
+        const statusMessage = document.getElementById('status-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const statusText = document.getElementById('status-text');
+        
+        // Update status
+        statusText.textContent = 'Loading country data...';
+        
+        // Fetch countries dynamically
+        loadCountries();
+      });
+      
       async function loadCountries() {
         try {
           const response = await fetch('http://localhost:5000/api/admin/countries');
           const result = await response.json();
+
+          // Hide loading message when data is loaded
+          document.getElementById('status-message').classList.add('d-none');
 
           if (result.success) {
             const countrySelect = document.getElementById('country');
@@ -105,18 +120,34 @@
               countrySelect.appendChild(option);
             });
           } else {
-            alert('Failed to load countries');
+            showError('Failed to load countries. Please refresh the page or contact support.');
           }
         } catch (error) {
           console.error('Error loading countries:', error);
+          showError('Unable to connect to the server. Please check your internet connection and try again.');
         }
       }
 
-      loadCountries();
+      function showError(message) {
+        const statusMessage = document.getElementById('status-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const statusText = document.getElementById('status-text');
+        
+        statusMessage.classList.remove('alert-info');
+        statusMessage.classList.add('alert-danger');
+        loadingSpinner.classList.add('d-none');
+        statusText.textContent = message;
+      }
 
       // Handle login form submission
       document.getElementById('login-form').addEventListener('submit', async function (event) {
         event.preventDefault();
+
+        // Form validation
+        if (!this.checkValidity()) {
+          this.classList.add('was-validated');
+          return;
+        }
 
         const username = document.getElementById('username').value;
         const country = document.getElementById('country').value;
@@ -147,10 +178,11 @@
             localStorage.setItem('token', result.token);
             window.location.href = 'survey-selection.html';
           } else {
-            alert(result.message);
+            alert(result.message || 'Invalid credentials. Please try again.');
           }
         } catch (error) {
           console.error('Login error:', error);
+          alert('Error connecting to the server. Please try again later.');
         } finally {
           document.getElementById('login-btn-spinner').classList.add('d-none');
           document.getElementById('login-btn-text').textContent = 'Log In';
