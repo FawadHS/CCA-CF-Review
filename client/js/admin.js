@@ -13,32 +13,24 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('No admin token, showing login form');
     }
 
-    // Set up event listeners
+    // Set up event listeners - using button click handlers instead of form submit
     setupEventListeners();
 });
 
 function setupEventListeners() {
-    // Admin login form submission
-    const adminLoginForm = document.getElementById('admin-login-form');
-    if (adminLoginForm) {
-        console.log('Login form found, setting up event listener');
-        // This is the critical part - make sure we're preventing default form behavior
-        adminLoginForm.addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent default form submission
-            console.log('Form submit intercepted');
-            handleAdminLogin(event);
-        });
+    // Admin login button click
+    const adminLoginBtn = document.getElementById('admin-login-btn');
+    if (adminLoginBtn) {
+        console.log('Login button found, setting up event listener');
+        adminLoginBtn.addEventListener('click', handleAdminLogin);
     } else {
-        console.error('Admin login form not found!');
+        console.error('Admin login button not found!');
     }
 
-    // Add country form submission
-    const addCountryForm = document.getElementById('add-country-form');
-    if (addCountryForm) {
-        addCountryForm.addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent default form submission
-            handleAddCountry(event);
-        });
+    // Add country button click
+    const addCountryBtn = document.getElementById('add-country-btn');
+    if (addCountryBtn) {
+        addCountryBtn.addEventListener('click', handleAddCountry);
     }
 
     // Delete country confirmation
@@ -48,11 +40,11 @@ function setupEventListeners() {
     }
 }
 
-async function handleAdminLogin(event) {
+async function handleAdminLogin() {
     console.log('Admin login function called');
 
-    // The admin.html form only has a password field, no username field
-    // But the API expects both username and password
+    // Get form values
+    const username = document.getElementById('admin-username').value;
     const password = document.getElementById('admin-password').value;
     
     if (!password) {
@@ -61,8 +53,8 @@ async function handleAdminLogin(event) {
     }
 
     const loginData = {
-        username: "admin",  // Username is static in this example
-        password: password  // Get password from the form input
+        username: username,  // Should be "admin" from the hidden field
+        password: password
     };
 
     console.log('Sending login request:', loginData);
@@ -78,24 +70,31 @@ async function handleAdminLogin(event) {
         });
 
         console.log('Login response status:', response.status);
-        const result = await response.json();
-        console.log('Login response:', result);
+        
+        // Try to parse the response as JSON
+        try {
+            const result = await response.json();
+            console.log('Login response:', result);
 
-        // Handle response after successful login
-        if (result.success) {
-            // Save token to localStorage
-            localStorage.setItem('adminToken', result.token);
-            console.log('Admin login successful, token saved');
+            // Handle response after successful login
+            if (result && result.success) {
+                // Save token to localStorage
+                localStorage.setItem('adminToken', result.token);
+                console.log('Admin login successful, token saved');
 
-            // Show admin panel
-            showAdminPanel();
-            
-            // Load countries
-            loadCountries();
-        } else {
-            // Show error message if login fails
-            console.error('Login failed:', result.message);
-            alert(result.message || 'Invalid credentials. Please try again.');
+                // Show admin panel
+                showAdminPanel();
+                
+                // Load countries
+                loadCountries();
+            } else {
+                // Show error message if login fails
+                console.error('Login failed:', result ? result.message : 'Unknown error');
+                alert(result && result.message ? result.message : 'Invalid credentials. Please try again.');
+            }
+        } catch (parseError) {
+            console.error('Error parsing response:', parseError);
+            alert('Error parsing server response. Please try again.');
         }
     } catch (error) {
         console.error('Login error:', error);
@@ -211,8 +210,8 @@ function maskPassword(password) {
     return password.charAt(0) + '*'.repeat(password.length - 2) + password.charAt(password.length - 1);
 }
 
-async function handleAddCountry(event) {
-    console.log('Add country form submitted');
+async function handleAddCountry() {
+    console.log('Add country function called');
 
     const countryName = document.getElementById('country-name').value;
     const countryPassword = document.getElementById('country-password').value;
@@ -287,7 +286,6 @@ function showDeleteConfirmation(event) {
         deleteModal.show();
     } catch (error) {
         console.error('Error showing delete modal:', error);
-        // Fallback if modal doesn't work
         if (confirm(`Are you sure you want to delete ${countryName}?`)) {
             confirmDeleteCountry({ dataset: { id: countryId } });
         }

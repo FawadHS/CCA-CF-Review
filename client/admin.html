@@ -20,11 +20,11 @@
           <!-- Login Form -->
           <div id="admin-login" class="mb-4">
             <h5 class="mb-3">Admin Login</h5>
-            <form id="admin-login-form">
+            <!-- Using a hidden form to prevent browser default form submission -->
+            <form id="admin-login-form" onsubmit="return false;">
+              <input type="hidden" id="admin-username" value="admin" />
               <div class="mb-3">
-                <label for="admin-password" class="form-label"
-                  >Admin Password</label
-                >
+                <label for="admin-password" class="form-label">Admin Password</label>
                 <input
                   type="password"
                   class="form-control"
@@ -32,7 +32,7 @@
                   required
                 />
               </div>
-              <button type="submit" class="btn btn-primary">Login</button>
+              <button type="button" id="admin-login-btn" class="btn btn-primary">Login</button>
             </form>
           </div>
 
@@ -46,7 +46,7 @@
                 <h6>Add New Country</h6>
               </div>
               <div class="card-body">
-                <form id="add-country-form">
+                <form id="add-country-form" onsubmit="return false;">
                   <div class="row mb-3">
                     <div class="col-md-6">
                       <label for="country-name" class="form-label"
@@ -71,7 +71,7 @@
                       />
                     </div>
                   </div>
-                  <button type="submit" class="btn btn-success">
+                  <button type="button" id="add-country-btn" class="btn btn-success">
                     Add Country
                   </button>
                 </form>
