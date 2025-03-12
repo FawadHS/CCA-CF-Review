@@ -1,0 +1,29 @@
+{
+  "countries": [
+    {
+      "id": "1",
+      "name": "Afghanistan",
+      "password": "AFpass123"
+    },
+    {
+      "id": "2",
+      "name": "Albania",
+      "password": "ALpass123"
+    },
+    {
+      "id": "3",
+      "name": "Algeria",
+      "password": "DZpass123"
+    },
+    {
+      "name": "Brazil",
+      "id": "4",
+      "password": "BRpass123"
+    },
+    {
+      "name": "Canada",
+      "id": "5",
+      "password": "CApass123"
+    }
+  ]
+}

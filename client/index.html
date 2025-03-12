@@ -1,0 +1,161 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>CCA-CF Survey - Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/styles.css?v=1.0.3" />
+    <link rel="icon" href="img/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div class="container login-container">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white text-center">
+          <h3>CCA-CF Survey Login</h3>
+          <p class="mb-0">Common Country Assessment & Cooperation Framework</p>
+        </div>
+        <div class="card-body p-4">
+          <div id="status-message" class="alert alert-info mb-4" role="alert">
+            <div class="d-flex align-items-center">
+              <div class="spinner-border spinner-border-sm me-2" role="status" id="loading-spinner">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <span id="status-text">Initializing application...</span>
+            </div>
+          </div>
+
+          <form id="login-form" class="needs-validation" novalidate>
+            <div class="mb-3">
+              <label for="username" class="form-label">Username (Optional)</label>
+              <input type="text" class="form-control" id="username" placeholder="Enter your username" />
+              <div class="form-text">Leave blank if not provided.</div>
+            </div>
+            <div class="mb-3">
+              <label for="country" class="form-label">Country <span class="text-danger">*</span></label>
+              <select class="form-select" id="country" required>
+                <option value="" selected disabled>Select your country</option>
+                <!-- Countries will be loaded dynamically here -->
+              </select>
+              <div class="invalid-feedback">Please select your country.</div>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+              <input type="password" class="form-control" id="password" required />
+              <div class="invalid-feedback">Please enter your password.</div>
+              <div class="form-text">Enter the password provided to your country.</div>
+            </div>
+            <div class="d-grid mt-4">
+              <button type="submit" class="btn btn-primary" id="login-btn">
+                <span id="login-btn-text">Log In</span>
+                <span id="login-btn-spinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </span>
+              </button>
+            </div>
+          </form>
+
+          <div class="mt-4 pt-3 border-top">
+            <h5>About CCA-CF Survey</h5>
+            <p>
+              This platform allows countries to participate in the Common Country Assessment (CCA) and Cooperation
+              Framework (CF) surveys. These surveys help in gathering vital information for planning and implementing UN
+              development frameworks.
+            </p>
+            <p>
+              If you've been provided with login credentials but are experiencing difficulties, please contact your
+              country coordinator or the support team.
+            </p>
+          </div>
+        </div>
+        <div class="card-footer bg-light text-center">
+          <div class="row">
+            <div class="col-md-6 mb-2 mb-md-0">
+              <a href="mailto:support@cca-cf-survey.org" class="text-decoration-none">
+                <i class="bi bi-envelope"></i> support@cca-cf-survey.org
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a href="tel:+11234567890" class="text-decoration-none">
+                <i class="bi bi-telephone"></i> +1 (123) 456-7890
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // Fetch countries dynamically
+      async function loadCountries() {
+        try {
+          const response = await fetch('http://localhost:5000/api/admin/countries');
+          const result = await response.json();
+
+          if (result.success) {
+            const countrySelect = document.getElementById('country');
+            result.countries.forEach((country) => {
+              const option = document.createElement('option');
+              option.value = country.name;
+              option.textContent = country.name;
+              countrySelect.appendChild(option);
+            });
+          } else {
+            alert('Failed to load countries');
+          }
+        } catch (error) {
+          console.error('Error loading countries:', error);
+        }
+      }
+
+      loadCountries();
+
+      // Handle login form submission
+      document.getElementById('login-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const username = document.getElementById('username').value;
+        const country = document.getElementById('country').value;
+        const password = document.getElementById('password').value;
+
+        const loginData = {
+          username: username,
+          country: country,
+          password: password,
+        };
+
+        // Show loading spinner
+        document.getElementById('login-btn-spinner').classList.remove('d-none');
+        document.getElementById('login-btn-text').textContent = 'Logging in...';
+
+        try {
+          const response = await fetch('http://localhost:5000/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(loginData),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            localStorage.setItem('token', result.token);
+            window.location.href = 'survey-selection.html';
+          } else {
+            alert(result.message);
+          }
+        } catch (error) {
+          console.error('Login error:', error);
+        } finally {
+          document.getElementById('login-btn-spinner').classList.add('d-none');
+          document.getElementById('login-btn-text').textContent = 'Log In';
+        }
+      });
+    </script>
+  </body>
+</html>

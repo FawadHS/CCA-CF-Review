@@ -1,0 +1,9 @@
+{
+  "sessions": [
+    {
+      "username": "Afghanistan",
+      "country": "Afghanistan",
+      "token": "fake-jwt-token"
+    }
+  ]
+}
