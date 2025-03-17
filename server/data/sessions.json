@@ -4,6 +4,16 @@
       "username": "Afghanistan",
       "country": "Afghanistan",
       "token": "fake-jwt-token"
+    },
+    {
+      "username": "Afghanistan",
+      "country": "Afghanistan",
+      "token": "fake-jwt-token"
+    },
+    {
+      "username": "admin-f",
+      "country": "Afghanistan",
+      "token": "fake-jwt-token"
     }
   ]
 }

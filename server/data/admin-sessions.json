@@ -1,1 +1,8 @@
-{"sessions": []}
+{
+  "sessions": [
+    {
+      "username": "admin",
+      "token": "admin-jwt-token-1742226468138"
+    }
+  ]
+}

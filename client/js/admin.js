@@ -38,6 +38,24 @@ function setupEventListeners() {
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', confirmDeleteCountry);
     }
+    
+    // Edit country save button
+    const saveEditBtn = document.getElementById('save-edit-btn');
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', saveEditedCountry);
+    }
+    
+    // Add user save button
+    const saveAddUserBtn = document.getElementById('save-add-user-btn');
+    if (saveAddUserBtn) {
+        saveAddUserBtn.addEventListener('click', addUserToCountry);
+    }
+    
+    // Edit user save button
+    const saveEditUserBtn = document.getElementById('save-edit-user-btn');
+    if (saveEditUserBtn) {
+        saveEditUserBtn.addEventListener('click', saveEditedUser);
+    }
 }
 
 async function handleAdminLogin() {
@@ -137,7 +155,7 @@ async function loadCountries() {
             return;
         }
         
-        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">Loading countries...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Loading countries...</td></tr>';
 
         // Fetch countries from API
         console.log('Fetching countries from API');
@@ -154,13 +172,13 @@ async function loadCountries() {
         if (result.success) {
             displayCountries(result.countries);
         } else {
-            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Failed to load countries</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Failed to load countries</td></tr>';
         }
     } catch (error) {
         console.error('Error loading countries:', error);
         const tableBody = document.getElementById('countries-table-body');
         if (tableBody) {
-            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error connecting to the server</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error connecting to the server</td></tr>';
         }
     }
 }
@@ -176,28 +194,82 @@ function displayCountries(countries) {
     tableBody.innerHTML = '';
 
     if (!countries || countries.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No countries found</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No countries found</td></tr>';
         return;
     }
 
+    // Add primary row for each country
     countries.forEach(country => {
+        // Display the first user information (if any) in the main row
+        const firstUser = country.users && country.users.length > 0 ? country.users[0] : null;
+        
         const row = document.createElement('tr');
+        row.classList.add('country-row');
         row.innerHTML = `
             <td>${country.id}</td>
             <td>${country.name}</td>
             <td>${maskPassword(country.password)}</td>
+            <td>${firstUser ? firstUser.username || '-' : '-'}</td>
+            <td>${firstUser ? firstUser.email || '-' : '-'}</td>
+            <td>${firstUser ? firstUser.organization || '-' : '-'}</td>
             <td>
+                <button class="btn btn-sm btn-primary edit-country-btn me-1" data-id="${country.id}" data-name="${country.name}">
+                    Edit
+                </button>
+                <button class="btn btn-sm btn-info add-user-btn me-1" data-id="${country.id}" data-name="${country.name}">
+                    Add User
+                </button>
                 <button class="btn btn-sm btn-danger delete-country-btn" data-id="${country.id}" data-name="${country.name}">
                     Delete
                 </button>
             </td>
         `;
         tableBody.appendChild(row);
+        
+        // Add additional rows for extra users if present
+        if (country.users && country.users.length > 1) {
+            for (let i = 1; i < country.users.length; i++) {
+                const user = country.users[i];
+                const userRow = document.createElement('tr');
+                userRow.classList.add('user-row', 'table-secondary');
+                userRow.innerHTML = `
+                    <td colspan="2"></td>
+                    <td colspan="1"></td>
+                    <td>${user.username || '-'}</td>
+                    <td>${user.email || '-'}</td>
+                    <td>${user.organization || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning edit-user-btn" 
+                            data-country-id="${country.id}" 
+                            data-user-index="${i}"
+                            data-username="${user.username || ''}">
+                            Edit User
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(userRow);
+            }
+        }
     });
 
     // Add event listeners to delete buttons
     document.querySelectorAll('.delete-country-btn').forEach(button => {
         button.addEventListener('click', showDeleteConfirmation);
+    });
+    
+    // Add event listeners to edit buttons
+    document.querySelectorAll('.edit-country-btn').forEach(button => {
+        button.addEventListener('click', showEditForm);
+    });
+    
+    // Add event listeners to add user buttons
+    document.querySelectorAll('.add-user-btn').forEach(button => {
+        button.addEventListener('click', showAddUserForm);
+    });
+    
+    // Add event listeners to edit user buttons
+    document.querySelectorAll('.edit-user-btn').forEach(button => {
+        button.addEventListener('click', showEditUserForm);
     });
 }
 
@@ -215,6 +287,9 @@ async function handleAddCountry() {
 
     const countryName = document.getElementById('country-name').value;
     const countryPassword = document.getElementById('country-password').value;
+    const countryUsername = document.getElementById('country-username').value;
+    const countryEmail = document.getElementById('country-email').value;
+    const countryOrganization = document.getElementById('country-organization').value;
 
     if (!countryName || !countryPassword) {
         alert('Please enter both country name and password.');
@@ -237,7 +312,10 @@ async function handleAddCountry() {
             },
             body: JSON.stringify({
                 name: countryName,
-                password: countryPassword
+                password: countryPassword,
+                username: countryUsername,
+                email: countryEmail,
+                organization: countryOrganization
             }),
         });
 
@@ -246,11 +324,18 @@ async function handleAddCountry() {
         console.log('Add country response:', result);
 
         if (result.success) {
-            alert('Country added successfully!');
+            let message = 'Country added successfully!';
+            if (result.userAdded) {
+                message = 'User added to existing country successfully!';
+            }
+            alert(message);
             
             // Clear the form
             document.getElementById('country-name').value = '';
             document.getElementById('country-password').value = '';
+            document.getElementById('country-username').value = '';
+            document.getElementById('country-email').value = '';
+            document.getElementById('country-organization').value = '';
             
             // Reload countries
             loadCountries();
@@ -303,27 +388,341 @@ async function confirmDeleteCountry() {
     }
     
     try {
-        // In a complete implementation, you would have a DELETE endpoint
-        // Here we'll just simulate success
         console.log(`Deleting country with ID: ${countryId}`);
         
-        // Simulate API call success
-        setTimeout(() => {
-            // Hide the modal
-            try {
-                bootstrap.Modal.getInstance(document.getElementById('delete-modal')).hide();
-            } catch (error) {
-                console.error('Error hiding modal:', error);
+        // Send DELETE request to the API
+        const response = await fetch(`http://localhost:5000/api/admin/countries/${countryId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
             }
-            
+        });
+        
+        console.log('Delete response status:', response.status);
+        const result = await response.json();
+        
+        // Hide the modal
+        try {
+            bootstrap.Modal.getInstance(document.getElementById('delete-modal')).hide();
+        } catch (error) {
+            console.error('Error hiding modal:', error);
+        }
+        
+        if (result.success) {
             // Show success message
             alert('Country deleted successfully!');
             
             // Reload countries
             loadCountries();
-        }, 500);
+        } else {
+            alert(result.message || 'Failed to delete country. Please try again.');
+        }
     } catch (error) {
         console.error('Error deleting country:', error);
         alert('An error occurred while deleting the country. Please try again.');
+    }
+}
+
+// Function to show the edit form modal
+async function showEditForm(event) {
+    const countryId = event.target.dataset.id;
+    const countryName = event.target.dataset.name;
+    
+    // Get the admin token
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        alert('Your session has expired. Please login again.');
+        return;
+    }
+    
+    try {
+        // Fetch the country details from the server
+        const response = await fetch(`http://localhost:5000/api/admin/countries/${countryId}`, {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+        
+        if (response.status === 200) {
+            const result = await response.json();
+            if (result.success && result.country) {
+                const country = result.country;
+                
+                // Populate the edit form with the country details
+                document.getElementById('edit-country-id').value = country.id;
+                document.getElementById('edit-country-name').value = country.name;
+                document.getElementById('edit-country-password').value = ''; // For security, don't populate the password
+                
+                // Get the first user information (if available)
+                const firstUser = country.users && country.users.length > 0 ? country.users[0] : null;
+                
+                document.getElementById('edit-country-username').value = firstUser ? firstUser.username || '' : '';
+                document.getElementById('edit-country-email').value = firstUser ? firstUser.email || '' : '';
+                document.getElementById('edit-country-organization').value = firstUser ? firstUser.organization || '' : '';
+                
+                // Show the modal
+                const editModal = new bootstrap.Modal(document.getElementById('edit-modal'));
+                editModal.show();
+            } else {
+                console.error('Failed to get country details:', result);
+                // Fall back to getting data from the table
+                fallbackShowEditForm(event, countryId, countryName);
+            }
+        } else {
+            console.error('Failed to get country details, status:', response.status);
+            // Fall back to getting data from the table
+            fallbackShowEditForm(event, countryId, countryName);
+        }
+    } catch (error) {
+        console.error('Error fetching country details:', error);
+        // Fall back to getting data from the table
+        fallbackShowEditForm(event, countryId, countryName);
+    }
+}
+
+// Fallback function to populate edit form from the table row if API call fails
+function fallbackShowEditForm(event, countryId, countryName) {
+    // Populate the edit form with the country details
+    document.getElementById('edit-country-id').value = countryId;
+    document.getElementById('edit-country-name').value = countryName;
+    document.getElementById('edit-country-password').value = ''; // For security, don't populate the password
+    
+    // Find the country row to get data
+    const countryRow = event.target.closest('tr');
+    if (!countryRow) return;
+    
+    const cells = countryRow.cells;
+    if (cells.length < 6) return;
+    
+    // Get the first user information from the row cells
+    const username = cells[3].textContent !== '-' ? cells[3].textContent : '';
+    const email = cells[4].textContent !== '-' ? cells[4].textContent : '';
+    const organization = cells[5].textContent !== '-' ? cells[5].textContent : '';
+    
+    document.getElementById('edit-country-username').value = username;
+    document.getElementById('edit-country-email').value = email;
+    document.getElementById('edit-country-organization').value = organization;
+    
+    // Show the modal
+    const editModal = new bootstrap.Modal(document.getElementById('edit-modal'));
+    editModal.show();
+}
+
+// Function to save edited country details
+async function saveEditedCountry() {
+    const countryId = document.getElementById('edit-country-id').value;
+    const countryName = document.getElementById('edit-country-name').value;
+    const countryPassword = document.getElementById('edit-country-password').value;
+    const countryUsername = document.getElementById('edit-country-username').value;
+    const countryEmail = document.getElementById('edit-country-email').value;
+    const countryOrganization = document.getElementById('edit-country-organization').value;
+    
+    if (!countryName) {
+        alert('Country name is required.');
+        return;
+    }
+    
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        alert('Your session has expired. Please login again.');
+        return;
+    }
+    
+    try {
+        console.log('Updating country:', {
+            id: countryId,
+            name: countryName,
+            username: countryUsername,
+            email: countryEmail,
+            organization: countryOrganization
+        });
+        
+        // Make the API call to update the country
+        const response = await fetch(`http://localhost:5000/api/admin/countries/${countryId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({
+                name: countryName,
+                password: countryPassword, // Only sent if filled in
+                username: countryUsername,
+                email: countryEmail,
+                organization: countryOrganization
+            }),
+        });
+
+        console.log('Update country response status:', response.status);
+        const result = await response.json();
+        
+        if (result.success) {
+            // Close the modal
+            bootstrap.Modal.getInstance(document.getElementById('edit-modal')).hide();
+            
+            // Show success message
+            alert('Country updated successfully!');
+            
+            // Reload countries to refresh the table
+            loadCountries();
+        } else {
+            alert(result.message || 'Failed to update country. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error updating country:', error);
+        alert('An error occurred while updating the country. Please try again.');
+    }
+}
+
+// Function to show the add user form
+function showAddUserForm(event) {
+    const countryId = event.target.dataset.id;
+    const countryName = event.target.dataset.name;
+    
+    // Set the country information in the add user modal
+    document.getElementById('add-user-country-id').value = countryId;
+    document.getElementById('add-user-country-name').textContent = countryName;
+    
+    // Clear the form fields
+    document.getElementById('add-user-username').value = '';
+    document.getElementById('add-user-email').value = '';
+    document.getElementById('add-user-organization').value = '';
+    
+    // Show the modal
+    const addUserModal = new bootstrap.Modal(document.getElementById('add-user-modal'));
+    addUserModal.show();
+}
+
+// Function to add a new user to a country
+async function addUserToCountry() {
+    const countryId = document.getElementById('add-user-country-id').value;
+    const username = document.getElementById('add-user-username').value;
+    const email = document.getElementById('add-user-email').value;
+    const organization = document.getElementById('add-user-organization').value;
+    
+    if (!username) {
+        alert('Username is required.');
+        return;
+    }
+    
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        alert('Your session has expired. Please login again.');
+        return;
+    }
+    
+    try {
+        // Make API call to add user to country
+        const response = await fetch(`http://localhost:5000/api/admin/countries/${countryId}/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({
+                username,
+                email,
+                organization
+            }),
+        });
+
+        console.log('Add user response status:', response.status);
+        const result = await response.json();
+        
+        if (result.success) {
+            // Close the modal
+            bootstrap.Modal.getInstance(document.getElementById('add-user-modal')).hide();
+            
+            // Show success message
+            alert('User added successfully!');
+            
+            // Reload countries
+            loadCountries();
+        } else {
+            alert(result.message || 'Failed to add user. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        alert('An error occurred while adding the user. Please try again.');
+    }
+}
+
+// Function to show the edit user form
+function showEditUserForm(event) {
+    const countryId = event.target.dataset.countryId;
+    const userIndex = event.target.dataset.userIndex;
+    const username = event.target.dataset.username;
+    
+    // Find the user row to get data
+    const userRow = event.target.closest('tr');
+    if (!userRow) return;
+    
+    const cells = userRow.cells;
+    if (cells.length < 6) return;
+    
+    // Set the edit form values
+    document.getElementById('edit-user-country-id').value = countryId;
+    document.getElementById('edit-user-index').value = userIndex;
+    document.getElementById('edit-user-username').value = username;
+    document.getElementById('edit-user-email').value = cells[4].textContent !== '-' ? cells[4].textContent : '';
+    document.getElementById('edit-user-organization').value = cells[5].textContent !== '-' ? cells[5].textContent : '';
+    
+    // Show the modal
+    const editUserModal = new bootstrap.Modal(document.getElementById('edit-user-modal'));
+    editUserModal.show();
+}
+
+// Function to save edited user
+async function saveEditedUser() {
+    const countryId = document.getElementById('edit-user-country-id').value;
+    const userIndex = document.getElementById('edit-user-index').value;
+    const username = document.getElementById('edit-user-username').value;
+    const email = document.getElementById('edit-user-email').value;
+    const organization = document.getElementById('edit-user-organization').value;
+    
+    if (!username) {
+        alert('Username is required.');
+        return;
+    }
+    
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+        alert('Your session has expired. Please login again.');
+        return;
+    }
+    
+    try {
+        // Make API call to update user
+        const response = await fetch(`http://localhost:5000/api/admin/countries/${countryId}/users/${userIndex}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({
+                username,
+                email,
+                organization
+            }),
+        });
+
+        console.log('Update user response status:', response.status);
+        const result = await response.json();
+        
+        if (result.success) {
+            // Close the modal
+            bootstrap.Modal.getInstance(document.getElementById('edit-user-modal')).hide();
+            
+            // Show success message
+            alert('User updated successfully!');
+            
+            // Reload countries
+            loadCountries();
+        } else {
+            alert(result.message || 'Failed to update user. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error updating user:', error);
+        alert('An error occurred while updating the user. Please try again.');
     }
 }

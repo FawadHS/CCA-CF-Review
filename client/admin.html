@@ -49,26 +49,28 @@
                 <form id="add-country-form" onsubmit="return false;">
                   <div class="row mb-3">
                     <div class="col-md-6">
-                      <label for="country-name" class="form-label"
-                        >Country Name</label
-                      >
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="country-name"
-                        required
-                      />
+                      <label for="country-name" class="form-label">Country Name</label>
+                      <input type="text" class="form-control" id="country-name" required />
                     </div>
                     <div class="col-md-6">
-                      <label for="country-password" class="form-label"
-                        >Country Password</label
-                      >
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="country-password"
-                        required
-                      />
+                      <label for="country-password" class="form-label">Country Password</label>
+                      <input type="text" class="form-control" id="country-password" required />
+                    </div>
+                  </div>
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="country-username" class="form-label">Default Username</label>
+                      <input type="text" class="form-control" id="country-username" />
+                    </div>
+                    <div class="col-md-6">
+                      <label for="country-email" class="form-label">Contact Email</label>
+                      <input type="email" class="form-control" id="country-email" />
+                    </div>
+                  </div>
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="country-organization" class="form-label">Organization</label>
+                      <input type="text" class="form-control" id="country-organization" />
                     </div>
                   </div>
                   <button type="button" id="add-country-btn" class="btn btn-success">
@@ -91,6 +93,9 @@
                         <th>ID</th>
                         <th>Country</th>
                         <th>Password</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Organization</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -137,6 +142,169 @@
               id="confirm-delete-btn"
             >
               Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Country Modal -->
+    <div class="modal fade" id="edit-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Country</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="edit-country-form">
+              <input type="hidden" id="edit-country-id">
+              <div class="mb-3">
+                <label for="edit-country-name" class="form-label">Country Name</label>
+                <input type="text" class="form-control" id="edit-country-name" required>
+              </div>
+              <div class="mb-3">
+                <label for="edit-country-password" class="form-label">Password</label>
+                <input type="text" class="form-control" id="edit-country-password" placeholder="Leave blank to keep current password">
+              </div>
+              <div class="mb-3">
+                <label for="edit-country-username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="edit-country-username">
+              </div>
+              <div class="mb-3">
+                <label for="edit-country-email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="edit-country-email">
+              </div>
+              <div class="mb-3">
+                <label for="edit-country-organization" class="form-label">Organization</label>
+                <input type="text" class="form-control" id="edit-country-organization">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="save-edit-btn"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div class="modal fade" id="add-user-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add User</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="add-user-form">
+              <input type="hidden" id="add-user-country-id">
+              <div class="mb-3">
+                <label class="form-label">Country</label>
+                <p id="add-user-country-name" class="form-control-plaintext"></p>
+              </div>
+              <div class="mb-3">
+                <label for="add-user-username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="add-user-username" required>
+              </div>
+              <div class="mb-3">
+                <label for="add-user-email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="add-user-email">
+              </div>
+              <div class="mb-3">
+                <label for="add-user-organization" class="form-label">Organization</label>
+                <input type="text" class="form-control" id="add-user-organization">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="save-add-user-btn"
+            >
+              Add User
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal fade" id="edit-user-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit User</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="edit-user-form">
+              <input type="hidden" id="edit-user-country-id">
+              <input type="hidden" id="edit-user-index">
+              <div class="mb-3">
+                <label for="edit-user-username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="edit-user-username" required>
+              </div>
+              <div class="mb-3">
+                <label for="edit-user-email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="edit-user-email">
+              </div>
+              <div class="mb-3">
+                <label for="edit-user-organization" class="form-label">Organization</label>
+                <input type="text" class="form-control" id="edit-user-organization">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="save-edit-user-btn"
+            >
+              Save Changes
             </button>
           </div>
         </div>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        #response {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            min-height: 100px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Admin API Test</h1>
+    
+    <div>
+        <h2>Test Admin Login</h2>
+        <div>
+            <label for="username">Username:</label>
+            <input type="text" id="username" value="admin">
+        </div>
+        <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="admin123">
+        </div>
+        <button id="test-login">Test Login API</button>
+    </div>
+    
+    <div>
+        <h2>Response:</h2>
+        <div id="response">Results will appear here</div>
+    </div>
+
+    <script>
+        // Function to display results
+        function showResponse(data) {
+            document.getElementById('response').textContent = 
+                typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+        }
+
+        // Test admin login
+        document.getElementById('test-login').addEventListener('click', async function() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            showResponse('Sending request...');
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                showResponse({
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries([...response.headers.entries()]),
+                    body: await response.json().catch(() => 'Could not parse JSON')
+                });
+            } catch (error) {
+                showResponse('Error: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
