@@ -2,9 +2,8 @@ const app = require('./app');
 const http = require('http');
 const os = require('os');
 
-// Get port from environment or use default
-// Azure Web Apps expects the app to listen on port 8080
-const PORT = process.env.PORT || 8080;
+// Force port 8080 for Azure Web Apps
+const PORT = 8080;
 
 // Create HTTP server
 const server = http.createServer(app);

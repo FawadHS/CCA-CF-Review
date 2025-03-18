@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth');
 const surveyRoutes = require('./routes/survey');
 const adminRoutes = require('./routes/admin');
 
+// Load environment variables
 dotenv.config();
 
 // Create a logger instance
@@ -31,6 +32,9 @@ const logger = winston.createLogger({
 
 // Create Express app
 const app = express();
+
+// Enable trust proxy for Azure deployment
+app.set('trust proxy', 1);
 
 // Configure rate limiting
 const limiter = rateLimit({
@@ -78,6 +82,23 @@ if (!fs.existsSync(dataDir)) {
   });
 }
 
+// Check and ensure data files exist
+initialDataFiles = [
+  { file: 'countries.json', content: { countries: [] } },
+  { file: 'sessions.json', content: { sessions: [] } },
+  { file: 'admin-sessions.json', content: { sessions: [] } },
+  { file: 'surveys.json', content: { surveys: [] } },
+  { file: 'users.json', content: { users: [] } }
+];
+
+initialDataFiles.forEach(({ file, content }) => {
+  const filePath = path.join(dataDir, file);
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+    logger.info(`Created missing data file: ${file}`);
+  }
+});
+
 // JWT verification middleware for protected routes
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.body.token;
@@ -89,6 +110,11 @@ const verifyToken = (req, res, next) => {
   try {
     // Read sessions from JSON file
     const sessionsFile = path.join(__dirname, 'data', 'sessions.json');
+    if (!fs.existsSync(sessionsFile)) {
+      fs.writeFileSync(sessionsFile, JSON.stringify({ sessions: [] }, null, 2));
+      logger.warn('Created missing sessions.json file');
+    }
+    
     const sessions = JSON.parse(fs.readFileSync(sessionsFile, 'utf8')).sessions;
     
     // Find the session
@@ -125,7 +151,7 @@ app.get('/', (req, res) => {
 
 // Health check endpoint for Azure
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'UP' });
+  res.status(200).json({ status: 'UP', version: process.version, environment: process.env.NODE_ENV || 'development' });
 });
 
 // Error handling middleware
