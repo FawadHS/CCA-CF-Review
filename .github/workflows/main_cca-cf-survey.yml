@@ -53,15 +53,14 @@ jobs:
             }' > server/package.json
           fi
       
-      - name: Use Node.js
+      - name: Use Node.js 22
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version: '22.x'
       
       - name: Install Dependencies
         working-directory: ./server
-        run: |
-          npm install
+        run: npm install
       
       - name: Run Linter
         working-directory: ./server
@@ -94,10 +93,10 @@ jobs:
           echo "PORT=8080" > .env
           echo "NODE_ENV=production" >> .env
       
-      - name: Use Node.js
+      - name: Use Node.js 22
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version: '22.x'
       
       - name: Install Production Dependencies
         working-directory: ./server
@@ -131,3 +130,10 @@ jobs:
           unzip release.zip
           echo "Artifact contents:"
           ls -R
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: "cca-cf-survey"
+          publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
+          package: release.zip
