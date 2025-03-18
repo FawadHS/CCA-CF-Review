@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 8080;
 const server = http.createServer(app);
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('==================================================');
   console.log(`CCA-CF Survey Application started on port ${PORT}`);
   console.log('==================================================');
@@ -21,6 +21,13 @@ server.listen(PORT, () => {
   console.log(`Running on Node.js version: ${process.version}`);
   console.log(`Platform: ${os.platform()} ${os.release()}`);
   console.log(`Host: ${os.hostname()}`);
+  console.log('==================================================');
+  console.log(`Available routes:`);
+  console.log('- /: Root page');
+  console.log('- /health: Health check endpoint');
+  console.log('- /api/auth/*: Authentication routes');
+  console.log('- /api/survey/*: Survey routes');
+  console.log('- /api/admin/*: Admin routes');
   console.log('==================================================');
 });
 
@@ -30,6 +37,9 @@ server.on('error', (error) => {
   
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use. Choose a different port.`);
+    process.exit(1);
+  } else {
+    console.error('Unhandled server error:', error);
     process.exit(1);
   }
 });
@@ -52,4 +62,6 @@ process.on('uncaughtException', (error) => {
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled promise rejection:', reason);
+  // Optionally exit the process
+  process.exit(1);
 });
