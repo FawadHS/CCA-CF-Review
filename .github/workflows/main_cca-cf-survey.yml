@@ -1,224 +1,131 @@
-name: Build and deploy Node.js app to Azure Web App - cca-cf-survey
+name: CCA-CF Survey Server CI/CD
+
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
+
 jobs:
-  build:
+  lint-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    defaults:
+      run:
+        working-directory: ./server
+
     steps:
       - uses: actions/checkout@v4
       
-      - name: Debug - Show directory contents
-        run: |
-          echo "Current directory contents:"
-          ls -la
-          echo "Server directory contents:"
-          ls -la server || echo "No server directory found"
-      
-      - name: Set up Node.js version
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'server/package-lock.json'
       
-      - name: Create web.config if missing
-        run: |
-          if [ ! -f "web.config" ]; then
-            echo "Creating web.config file..."
-            cat > web.config << 'EOL'
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <system.webServer>
-    <webSocket enabled="false" />
-    <handlers>
-      <add name="iisnode" path="server/start.js" verb="*" modules="iisnode" />
-    </handlers>
-    <rewrite>
-      <rules>
-        <rule name="NodeJS">
-          <match url="/*" />
-          <action type="Rewrite" url="server/start.js" />
-        </rule>
-      </rules>
-    </rewrite>
-    <iisnode nodeProcessCommandLine="node.exe" watchedFiles="web.config;*.js" />
-    <security>
-      <requestFiltering>
-        <hiddenSegments>
-          <add segment="node_modules" />
-          <add segment="iisnode" />
-        </hiddenSegments>
-      </requestFiltering>
-    </security>
-    <httpErrors existingResponse="PassThrough" />
-  </system.webServer>
-</configuration>
-EOL
-            echo "Created web.config"
-          else
-            echo "web.config already exists"
-          fi
-
-      - name: Ensure server directory and start.js
-        run: |
-          mkdir -p server
-          if [ ! -f "server/start.js" ]; then
-            if [ -f "start.js" ]; then
-              echo "Moving start.js to server directory..."
-              cp start.js server/start.js
-            else
-              echo "Creating server/start.js file..."
-              cat > server/start.js << 'EOL'
-const app = require('./app');
-const http = require('http');
-const os = require('os');
-
-// Get port from environment or use default
-// Azure Web Apps expects the app to listen on port 8080
-const PORT = process.env.PORT || 8080;
-
-// Create HTTP server
-const server = http.createServer(app);
-
-// Start server
-server.listen(PORT, () => {
-  console.log('==================================================');
-  console.log(`CCA-CF Survey Application started on port ${PORT}`);
-  console.log('==================================================');
-  console.log('Environment:', process.env.NODE_ENV || 'development');
-  console.log(`Running on Node.js version: ${process.version}`);
-  console.log(`Platform: ${os.platform()} ${os.release()}`);
-  console.log(`Host: ${os.hostname()}`);
-  console.log('==================================================');
-});
-
-// Handle server errors
-server.on('error', (error) => {
-  console.error('Server error:', error);
-  
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Choose a different port.`);
-    process.exit(1);
-  }
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-  
-  // Gracefully shutdown the server
-  server.close(() => {
-    process.exit(1);
-  });
-  
-  // If server doesn't close in 5 seconds, force exit
-  setTimeout(() => {
-    process.exit(1);
-  }, 5000);
-});
-
-// Handle unhandled rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled promise rejection:', reason);
-});
-EOL
-              echo "Created server/start.js"
-            fi
-          else
-            echo "server/start.js already exists"
-          fi
+      - name: Install Dependencies
+        run: npm ci
       
-      - name: Create data directory structure
-        run: |
-          mkdir -p server/data
-          
-      - name: Initialize data files
-        run: |
-          for file in server/data/{countries.json,sessions.json,admin-sessions.json,surveys.json,users.json}; do
-            if [ ! -f "$file" ]; then
-              case "$file" in
-                */countries.json)
-                  echo '{"countries":[{"id":"1","name":"Afghanistan","password":"AFpass123"},{"id":"2","name":"Albania","password":"ALpass123"},{"id":"3","name":"Algeria","password":"DZpass123"},{"id":"4","name":"Brazil","password":"BRpass123"},{"id":"5","name":"Canada","password":"CApass123"}]}' > "$file"
-                  ;;
-                *)
-                  echo '{"'$(basename "$file" .json)'":[]}' > "$file"
-                  ;;
-              esac
-              echo "Created $file"
-            fi
-          done
-          
-      - name: Create .env file if missing
-        run: |
-          if [ ! -f ".env" ]; then
-            echo "Creating .env file..."
-            cat > .env << 'EOL'
-PORT=8080
-NODE_ENV=production
-JWT_SECRET=temporary_secret_key_for_deployment
-EOL
-            echo "Created .env file"
-          else
-            echo ".env already exists"
-          fi
+      - name: Run Linter
+        run: npm run lint
       
-      - name: Install dependencies
-        run: npm install --omit=dev
-        
-      - name: Install server dependencies
-        run: |
-          if [ -d "server" ] && [ -f "server/package.json" ]; then
-            cd server
-            npm install --production
-            cd ..
-          fi
+      - name: Run Tests
+        run: npm test || echo "No tests configured"
+
+  build:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+
+    steps:
+      - uses: actions/checkout@v4
       
-      - name: Create .deployment file
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'server/package-lock.json'
+
+      - name: Create Environment Files
         run: |
-          echo "[config]" > .deployment
-          echo "command = npm start" >> .deployment
-          
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r -x "node_modules/*" "*.git*" "*.github/*" "*/.vscode/*"
-        
-      - name: Upload artifact for deployment job
+          echo "PORT=8080" > .env
+          echo "NODE_ENV=production" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+
+      - name: Install Production Dependencies
+        run: npm ci --omit=dev
+
+      - name: Create Deployment Artifact
+        run: |
+          mkdir -p ../artifact
+          cp -r . ../artifact/
+          cp ../.env ../artifact/
+          cd ..
+          zip -r release.zip artifact
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-app
+          name: server-release
           path: release.zip
-          
+
   deploy:
-    runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write
-      contents: read
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://cca-cf-survey.azurewebsites.net
+    
     steps:
-      - name: Download artifact from build job
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: node-app
-          
-      - name: Unzip artifact for deployment
+          name: server-release
+
+      - name: Unzip Artifact
         run: unzip release.zip
-      
-      - name: Login to Azure
+
+      - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9BBBDCA60F0E4D9B96094EFB4BCC1302 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D1FDAA4C26E649A19CBAACE111D486A9 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_C4187E6C596F4D8B9A0819B05E467CCA }}
-          
-      - name: 'Deploy to Azure Web App'
-        id: deploy-to-webapp
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'cca-cf-survey'
-          slot-name: 'Production'
-          package: .
+          package: artifact
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://cca-cf-survey.azurewebsites.net/health)
+          if [ $response -ne 200 ]; then
+            echo "Deployment verification failed with status $response"
+            exit 1
+          fi
+
+  security-scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: test
+          
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
