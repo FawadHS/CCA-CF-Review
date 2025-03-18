@@ -1,13 +1,13 @@
 # Node.js dependencies
-/node_modules
-/server/node_modules
-/client/node_modules
+node_modules/
+/server/node_modules/
+/client/node_modules/
 
 # Build directories
-/dist
-/build
-/client/build
-/client/dist
+/dist/
+/build/
+/client/build/
+/client/dist/
 
 # Environment files
 .env
@@ -17,28 +17,38 @@
 .env.production
 
 # Log files
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Azure specific
+# Dependency cache
+.npm
+.eslintcache
+
+# Azure and deployment
 .deployment
 .vscode/settings.json
 
 # Testing
-/coverage
-/nyc_output
+/coverage/
+/nyc_output/
 
-# Data files (be careful with this one - only ignore if you don't want to commit initial data)
-# /server/data/*.json
+# Optional npm cache directory
+.npm
+
+# Yarn Integrity file
+.yarn-integrity
+
+# TypeScript
+*.tsbuildinfo
 
 # Operating system files
 .DS_Store
@@ -49,8 +59,8 @@ ehthumbs.db
 Desktop.ini
 
 # Editor directories and files
-.idea
-.vscode
+.idea/
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
