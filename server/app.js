@@ -59,76 +59,45 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Create data directory if it doesn't exist
+// Ensure data directory exists
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
-  
-  // Create initial data files if they don't exist
-  const initialDataFiles = [
-    { file: 'countries.json', content: { countries: [] } },
-    { file: 'sessions.json', content: { sessions: [] } },
-    { file: 'admin-sessions.json', content: { sessions: [] } },
-    { file: 'surveys.json', content: { surveys: [] } },
-    { file: 'users.json', content: { users: [] } }
-  ];
-  
-  initialDataFiles.forEach(({ file, content }) => {
-    const filePath = path.join(dataDir, file);
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-      logger.info(`Created initial data file: ${file}`);
-    }
-  });
 }
 
-// Check and ensure data files exist
-initialDataFiles = [
-  { file: 'countries.json', content: { countries: [] } },
-  { file: 'sessions.json', content: { sessions: [] } },
-  { file: 'admin-sessions.json', content: { sessions: [] } },
-  { file: 'surveys.json', content: { surveys: [] } },
-  { file: 'users.json', content: { users: [] } }
-];
-
-initialDataFiles.forEach(({ file, content }) => {
+// Ensure required files exist
+const requiredFiles = ['countries.json', 'sessions.json', 'admin-sessions.json', 'surveys.json', 'users.json'];
+requiredFiles.forEach(file => {
   const filePath = path.join(dataDir, file);
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+    fs.writeFileSync(filePath, JSON.stringify({ data: [] }, null, 2));
     logger.info(`Created missing data file: ${file}`);
   }
 });
 
-// JWT verification middleware for protected routes
+// JWT verification middleware
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] || req.body.token;
-  
+
   if (!token) {
     return res.status(401).json({ success: false, message: 'No token provided' });
   }
-  
+
   try {
-    // Read sessions from JSON file
     const sessionsFile = path.join(__dirname, 'data', 'sessions.json');
     if (!fs.existsSync(sessionsFile)) {
       fs.writeFileSync(sessionsFile, JSON.stringify({ sessions: [] }, null, 2));
       logger.warn('Created missing sessions.json file');
     }
-    
+
     const sessions = JSON.parse(fs.readFileSync(sessionsFile, 'utf8')).sessions;
-    
-    // Find the session
     const session = sessions.find(s => s.token === token);
-    
+
     if (!session) {
       return res.status(401).json({ success: false, message: 'Invalid token' });
     }
-    
-    req.user = {
-      country: session.country,
-      username: session.username
-    };
-    
+
+    req.user = { country: session.country, username: session.username };
     next();
   } catch (error) {
     logger.error('Token verification error:', error);
@@ -136,7 +105,7 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// Serve static files from the client directory
+// Serve static files
 app.use(express.static(path.join(__dirname, '../client')));
 
 // API routes
@@ -144,20 +113,24 @@ app.use('/api/auth', authRoutes);
 app.use('/api/survey', verifyToken, surveyRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Root route will serve the 'index.html' file from the 'client' folder
+// Root route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../client', 'index.html'));
 });
 
 // Health check endpoint for Azure
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'UP', version: process.version, environment: process.env.NODE_ENV || 'development' });
+  res.status(200).json({
+    status: 'UP',
+    version: process.version,
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   logger.error(`Error: ${err.message}`, { stack: err.stack });
-  
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error'
@@ -172,5 +145,5 @@ app.use((req, res) => {
   });
 });
 
-// Export the app for use in start.js
+// Export the app
 module.exports = app;

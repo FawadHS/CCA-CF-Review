@@ -2,66 +2,115 @@ const app = require('./app');
 const http = require('http');
 const os = require('os');
 const dotenv = require('dotenv');
+const winston = require('winston');
 
 // Load environment variables
 dotenv.config();
 
-// Use PORT from environment, default to 8080
+// Create a logger instance for better debugging
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'server.log' })
+  ]
+});
+
+// Ensure PORT is set correctly
 const PORT = process.env.PORT || 8080;
+
+// Validate environment variables
+const requiredEnvVars = ['NODE_ENV', 'PORT', 'JWT_SECRET', 'ALLOWED_ORIGINS'];
+const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
+
+if (missingEnvVars.length > 0) {
+  logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+  process.exit(1);
+}
 
 // Create HTTP server
 const server = http.createServer(app);
 
-// Start server
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('==================================================');
-  console.log(`CCA-CF Survey Application started on port ${PORT}`);
-  console.log('==================================================');
-  console.log('Environment:', process.env.NODE_ENV || 'production');
-  console.log(`Running on Node.js version: ${process.version}`);
-  console.log(`Platform: ${os.platform()} ${os.release()}`);
-  console.log(`Host: ${os.hostname()}`);
-  console.log('==================================================');
-  console.log(`Available routes:`);
-  console.log('- /: Root page');
-  console.log('- /health: Health check endpoint');
-  console.log('- /api/auth/*: Authentication routes');
-  console.log('- /api/survey/*: Survey routes');
-  console.log('- /api/admin/*: Admin routes');
-  console.log('==================================================');
-});
+// Start the server with retry logic
+let retryCount = 0;
+const MAX_RETRIES = 3;
 
-// Handle server errors
+const startServer = () => {
+  server.listen(PORT, '0.0.0.0', () => {
+    logger.info('==================================================');
+    logger.info(`CCA-CF Survey Application started on port ${PORT}`);
+    logger.info('==================================================');
+    logger.info(`Environment: ${process.env.NODE_ENV || 'production'}`);
+    logger.info(`Running on Node.js version: ${process.version}`);
+    logger.info(`Platform: ${os.platform()} ${os.release()}`);
+    logger.info(`Host: ${os.hostname()}`);
+    logger.info('==================================================');
+    logger.info('Available routes:');
+    logger.info('- /: Root page');
+    logger.info('- /health: Health check endpoint');
+    logger.info('- /api/auth/*: Authentication routes');
+    logger.info('- /api/survey/*: Survey routes');
+    logger.info('- /api/admin/*: Admin routes');
+    logger.info('==================================================');
+  });
+};
+
+// Handle server errors and retry if necessary
 server.on('error', (error) => {
-  console.error('Server error:', error);
-  
+  logger.error('Server error:', error);
+
   if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Choose a different port.`);
-    process.exit(1);
+    logger.error(`Port ${PORT} is already in use. Retrying...`);
+    
+    if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      setTimeout(() => {
+        logger.info(`Retrying to start the server... Attempt ${retryCount}`);
+        startServer();
+      }, 3000);
+    } else {
+      logger.error(`Max retries reached. Port ${PORT} is still in use. Exiting.`);
+      process.exit(1);
+    }
   } else {
-    console.error('Unhandled server error:', error);
+    logger.error('Unhandled server error:', error);
     process.exit(1);
   }
 });
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-  
-  // Gracefully shutdown the server
+// Graceful shutdown handling
+const shutdown = (signal) => {
+  logger.warn(`${signal} received. Shutting down gracefully...`);
   server.close(() => {
-    process.exit(1);
+    logger.info('Server closed.');
+    process.exit(0);
   });
-  
-  // If server doesn't close in 5 seconds, force exit
+
   setTimeout(() => {
+    logger.error('Forcefully shutting down.');
     process.exit(1);
   }, 5000);
+};
+
+// Listen for termination signals
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception:', error);
+  shutdown('UncaughtException');
 });
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled promise rejection:', reason);
-  // Optionally exit the process
-  process.exit(1);
+  logger.error('Unhandled promise rejection:', reason);
+  shutdown('UnhandledRejection');
 });
+
+// Start the server
+startServer();
