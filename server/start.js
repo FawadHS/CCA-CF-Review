@@ -2,10 +2,10 @@
 const app = require('./app');
 
 // Set up the port
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;  // Changed from 5000 to 8080
 
 // Start the server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`
 ========================================
   CCA-CF Survey Application Server
@@ -29,4 +29,21 @@ app.listen(PORT, () => {
   http://localhost:${PORT}
 ========================================
 `);
+}).on('error', (err) => {
+  console.error('Server failed to start:', err);
+  process.exit(1);
+});
+
+// Handle process termination
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
 });
