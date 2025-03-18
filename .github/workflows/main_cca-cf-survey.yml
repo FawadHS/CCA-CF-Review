@@ -1,4 +1,5 @@
 name: CCA-CF Survey App CI/CD
+
 on:
   push:
     branches: [ main ]
@@ -47,26 +48,26 @@ jobs:
           node-version: '18.x'
           cache: 'npm'
           cache-dependency-path: 'server/package-lock.json'
-      
+
       - name: Create Environment Files
         run: |
           echo "PORT=8080" > .env
           echo "NODE_ENV=production" >> .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-      
+
       - name: Install Production Dependencies
         working-directory: ./server
         run: npm ci --omit=dev
-      
+
       - name: Create Deployment Artifact
         run: |
-          mkdir -p artifact
-          cp -r server artifact/
+          mkdir -p artifact/server
+          cp -r server/* artifact/server/
           cp .env artifact/
           cp package.json artifact/
           cd artifact
           zip -r ../release.zip .
-      
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -82,23 +83,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-release
-      
+
       - name: Unzip Artifact
         run: unzip release.zip
-      
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'cca-cf-survey'
           package: .
-      
+
       - name: Verify Deployment
         run: |
           echo "Waiting for deployment to stabilize..."
