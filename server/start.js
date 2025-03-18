@@ -1,49 +1,52 @@
-// server/start.js
 const app = require('./app');
+const http = require('http');
+const os = require('os');
 
-// Set up the port
-const PORT = process.env.PORT || 8080;  // Changed from 5000 to 8080
+// Get port from environment or use default
+// Azure Web Apps expects the app to listen on port 8080
+const PORT = process.env.PORT || 8080;
 
-// Start the server
-const server = app.listen(PORT, () => {
-  console.log(`
-========================================
-  CCA-CF Survey Application Server
-========================================
-  Server is running on http://localhost:${PORT}
+// Create HTTP server
+const server = http.createServer(app);
 
-  Available endpoints:
-  - GET  /api/admin/countries (Get all countries)
-  - POST /api/admin/login (Admin login)
-  - POST /api/admin/countries (Add a new country)
-  - POST /api/auth/login (User login)
-  - POST /api/auth/validate-session (Validate user session)
-  - POST /api/survey/save (Save survey progress)
-  - POST /api/survey/submit (Submit survey)
-
-  Default admin credentials:
-  - Username: admin
-  - Password: admin123
-
-  Access the application at:
-  http://localhost:${PORT}
-========================================
-`);
-}).on('error', (err) => {
-  console.error('Server failed to start:', err);
-  process.exit(1);
+// Start server
+server.listen(PORT, () => {
+  console.log('==================================================');
+  console.log(`CCA-CF Survey Application started on port ${PORT}`);
+  console.log('==================================================');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log(`Running on Node.js version: ${process.version}`);
+  console.log(`Platform: ${os.platform()} ${os.release()}`);
+  console.log(`Host: ${os.hostname()}`);
+  console.log('==================================================');
 });
 
-// Handle process termination
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+// Handle server errors
+server.on('error', (error) => {
+  console.error('Server error:', error);
+  
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Choose a different port.`);
+    process.exit(1);
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  
+  // Gracefully shutdown the server
   server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+    process.exit(1);
   });
+  
+  // If server doesn't close in 5 seconds, force exit
+  setTimeout(() => {
+    process.exit(1);
+  }, 5000);
 });
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  process.exit(1);
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled promise rejection:', reason);
 });
