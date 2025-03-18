@@ -1,9 +1,13 @@
 const app = require('./app');
 const http = require('http');
 const os = require('os');
+const dotenv = require('dotenv');
 
-// Force port 8080 for Azure Web Apps
-const PORT = 8080;
+// Load environment variables
+dotenv.config();
+
+// Use PORT from environment, default to 8080
+const PORT = process.env.PORT || 8080;
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -13,7 +17,7 @@ server.listen(PORT, () => {
   console.log('==================================================');
   console.log(`CCA-CF Survey Application started on port ${PORT}`);
   console.log('==================================================');
-  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('Environment:', process.env.NODE_ENV || 'production');
   console.log(`Running on Node.js version: ${process.version}`);
   console.log(`Platform: ${os.platform()} ${os.release()}`);
   console.log(`Host: ${os.hostname()}`);

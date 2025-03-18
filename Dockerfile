@@ -1,19 +1,20 @@
-FROM node:16-alpine
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
 # Copy package files and install dependencies
 COPY server/package*.json ./server/
-RUN cd server && npm install
+RUN cd server && npm install --production
 
-# Copy all project files
+# Copy the rest of the application
 COPY . .
 
 # Set working directory to server
 WORKDIR /app/server
 
 # Expose the port the app will run on
-EXPOSE 5000
+EXPOSE 8080
 
 # Start the application
 CMD ["node", "start.js"]

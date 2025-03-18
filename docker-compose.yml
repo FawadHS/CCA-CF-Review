@@ -5,19 +5,18 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"  # Changed from 5000 to 8080 for Azure compatibility
+      - "8080:8080"  # Map host port 8080 to container port 8080
     volumes:
       - ./server:/app/server
       - ./client:/app/client
       - /app/server/node_modules
     environment:
-      - NODE_ENV=production  # Set to production for optimized performance
-      - PORT=8080  # Ensure the application listens on the correct port
-      - DEBUG=true  # Enable debugging logs for troubleshooting
-      - LOG_LEVEL=info  # Standardized logging level
-    restart: unless-stopped  # Ensures the container restarts on failure
+      - NODE_ENV=production
+      - PORT=8080
+      - JWT_SECRET=your_secure_jwt_secret_here
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]  # Checks if the app is running
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
