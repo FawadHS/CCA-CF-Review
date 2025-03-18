@@ -1,23 +1,143 @@
+name: Build and deploy Node.js app to Azure Web App - cca-cf-survey
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Debug - Show directory contents
+        run: |
+          echo "Current directory contents:"
+          ls -la
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+          cache: 'npm'  # Caching node_modules for faster builds
+
+      - name: Create package.json if missing
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "Creating package.json file..."
+            cat <<EOL > package.json
 {
-    "name": "cca-cf-survey",
-    "version": "1.0.0",
-    "description": "CCA-CF Survey Application",
-    "main": "server/app.js",
-    "scripts": {
-      "start": "node server/start.js"
-    },
-    "engines": {
-      "node": ">=18.0.0",
-      "npm": ">=9.0.0"
-    },
-    "dependencies": {
-      "bcryptjs": "^3.0.2",
-      "cors": "^2.8.5",
-      "dotenv": "^16.4.7",
-      "express": "^4.21.2",
-      "jsonwebtoken": "^9.0.2",
-      "helmet": "^7.1.0",
-      "winston": "^3.11.0",
-      "express-rate-limit": "^7.1.5"
-    }
+  "name": "cca-cf-survey",
+  "version": "1.0.0",
+  "description": "CCA-CF Survey Application",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/start.js"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "helmet": "^7.1.0",
+    "winston": "^3.11.0",
+    "express-rate-limit": "^7.1.5"
   }
+}
+EOL
+            echo "Created package.json"
+          else
+            echo "package.json already exists"
+          fi
+
+      - name: Install dependencies
+        run: npm install --omit=dev
+
+      - name: Install server dependencies
+        run: |
+          if [ -d "server" ] && [ -f "server/package.json" ]; then
+            cd server
+            npm install --production
+            cd ..
+          fi
+
+      - name: Create .deployment file
+        run: |
+          echo "[config]" > .deployment
+          echo "command = npm start" >> .deployment
+
+      - name: Pre-deployment validation
+        run: |
+          if [ ! -f "server/start.js" ]; then
+            echo "Error: start.js not found. Exiting..."
+            exit 1
+          fi
+          if [ ! -f "package.json" ]; then
+            echo "Error: package.json missing. Exiting..."
+            exit 1
+          fi
+
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r -x "node_modules/*" "*.git*" "*.github/*" "*/.vscode/*" "tests/*"
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-app
+          path: release.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: node-app
+
+      - name: Unzip artifact for deployment
+        run: unzip release.zip
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
+
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'cca-cf-survey'
+          slot-name: 'Production'
+          package: .
+
+      - name: Verify Deployment
+        run: |
+          echo "Checking if the application is running..."
+          curl -I https://cca-cf-survey.azurewebsites.net || exit 1
+
+      - name: Post Deployment Logs
+        run: |
+          echo "Deployment completed. Checking logs..."
+          docker logs $(docker ps -q --filter "name=cca-cf-survey") || echo "No logs found"
