@@ -16,48 +16,157 @@ jobs:
         run: |
           echo "Current directory contents:"
           ls -la
+          echo "Server directory contents:"
+          ls -la server || echo "No server directory found"
       
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
-          node-version: '22.x'
+          node-version: '18.x'
       
-      - name: Create package.json if missing
+      - name: Create web.config if missing
         run: |
-          if [ ! -f "package.json" ]; then
-            echo "Creating package.json file..."
-            cat > package.json << 'EOL'
-            {
-              "name": "cca-cf-survey",
-              "version": "1.0.0",
-              "description": "CCA-CF Survey Application",
-              "main": "server/app.js",
-              "scripts": {
-                "start": "node server/start.js"
-              },
-              "engines": {
-                "node": ">=18.0.0",
-                "npm": ">=9.0.0"
-              },
-              "dependencies": {
-                "bcryptjs": "^3.0.2",
-                "cors": "^2.8.5",
-                "dotenv": "^16.4.7",
-                "express": "^4.21.2",
-                "jsonwebtoken": "^9.0.2",
-                "helmet": "^7.1.0",
-                "winston": "^3.11.0",
-                "express-rate-limit": "^7.1.5"
-              }
-            }
-            EOL
-            echo "Created package.json"
+          if [ ! -f "web.config" ]; then
+            echo "Creating web.config file..."
+            cat > web.config << 'EOL'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <webSocket enabled="false" />
+    <handlers>
+      <add name="iisnode" path="server/start.js" verb="*" modules="iisnode" />
+    </handlers>
+    <rewrite>
+      <rules>
+        <rule name="NodeJS">
+          <match url="/*" />
+          <action type="Rewrite" url="server/start.js" />
+        </rule>
+      </rules>
+    </rewrite>
+    <iisnode nodeProcessCommandLine="node.exe" watchedFiles="web.config;*.js" />
+    <security>
+      <requestFiltering>
+        <hiddenSegments>
+          <add segment="node_modules" />
+          <add segment="iisnode" />
+        </hiddenSegments>
+      </requestFiltering>
+    </security>
+    <httpErrors existingResponse="PassThrough" />
+  </system.webServer>
+</configuration>
+EOL
+            echo "Created web.config"
           else
-            echo "package.json already exists"
+            echo "web.config already exists"
           fi
+
+      - name: Ensure server directory and start.js
+        run: |
+          mkdir -p server
+          if [ ! -f "server/start.js" ]; then
+            if [ -f "start.js" ]; then
+              echo "Moving start.js to server directory..."
+              cp start.js server/start.js
+            else
+              echo "Creating server/start.js file..."
+              cat > server/start.js << 'EOL'
+const app = require('./app');
+const http = require('http');
+const os = require('os');
+
+// Get port from environment or use default
+// Azure Web Apps expects the app to listen on port 8080
+const PORT = process.env.PORT || 8080;
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Start server
+server.listen(PORT, () => {
+  console.log('==================================================');
+  console.log(`CCA-CF Survey Application started on port ${PORT}`);
+  console.log('==================================================');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log(`Running on Node.js version: ${process.version}`);
+  console.log(`Platform: ${os.platform()} ${os.release()}`);
+  console.log(`Host: ${os.hostname()}`);
+  console.log('==================================================');
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('Server error:', error);
+  
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Choose a different port.`);
+    process.exit(1);
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  
+  // Gracefully shutdown the server
+  server.close(() => {
+    process.exit(1);
+  });
+  
+  // If server doesn't close in 5 seconds, force exit
+  setTimeout(() => {
+    process.exit(1);
+  }, 5000);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled promise rejection:', reason);
+});
+EOL
+              echo "Created server/start.js"
+            fi
+          else
+            echo "server/start.js already exists"
+          fi
+      
+      - name: Create data directory structure
+        run: |
+          mkdir -p server/data
           
+      - name: Initialize data files
+        run: |
+          for file in server/data/{countries.json,sessions.json,admin-sessions.json,surveys.json,users.json}; do
+            if [ ! -f "$file" ]; then
+              case "$file" in
+                */countries.json)
+                  echo '{"countries":[{"id":"1","name":"Afghanistan","password":"AFpass123"},{"id":"2","name":"Albania","password":"ALpass123"},{"id":"3","name":"Algeria","password":"DZpass123"},{"id":"4","name":"Brazil","password":"BRpass123"},{"id":"5","name":"Canada","password":"CApass123"}]}' > "$file"
+                  ;;
+                *)
+                  echo '{"'$(basename "$file" .json)'":[]}' > "$file"
+                  ;;
+              esac
+              echo "Created $file"
+            fi
+          done
+          
+      - name: Create .env file if missing
+        run: |
+          if [ ! -f ".env" ]; then
+            echo "Creating .env file..."
+            cat > .env << 'EOL'
+PORT=8080
+NODE_ENV=production
+JWT_SECRET=temporary_secret_key_for_deployment
+EOL
+            echo "Created .env file"
+          else
+            echo ".env already exists"
+          fi
+      
       - name: Install dependencies
-        run: npm install
+        run: npm install --omit=dev
         
       - name: Install server dependencies
         run: |
