@@ -53,108 +53,82 @@ jobs:
               <httpErrors existingResponse="PassThrough" />
             </system.webServer>
           </configuration>' > web.config
-          echo "Created web.config"
       
-      - name: Ensure server directory and start.js
+      - name: Create start.js file
         run: |
           mkdir -p server
-          if [ ! -f "server/start.js" ]; then
-            if [ -f "start.js" ]; then
-              echo "Moving start.js to server directory..."
-              cp start.js server/start.js
-            else
-              echo "Creating server/start.js file..."
-              cat > server/start.js << 'EOL'
-const app = require('./app');
-const http = require('http');
-const os = require('os');
+          cat > server/start.js << 'EOF'
+          const app = require('./app');
+          const http = require('http');
+          const os = require('os');
 
-// Get port from environment or use default
-// Azure Web Apps expects the app to listen on port 8080
-const PORT = process.env.PORT || 8080;
+          // Get port from environment or use default
+          const PORT = process.env.PORT || 8080;
 
-// Create HTTP server
-const server = http.createServer(app);
+          // Create HTTP server
+          const server = http.createServer(app);
 
-// Start server
-server.listen(PORT, () => {
-  console.log('==================================================');
-  console.log(`CCA-CF Survey Application started on port ${PORT}`);
-  console.log('==================================================');
-  console.log('Environment:', process.env.NODE_ENV || 'development');
-  console.log(`Running on Node.js version: ${process.version}`);
-  console.log(`Platform: ${os.platform()} ${os.release()}`);
-  console.log(`Host: ${os.hostname()}`);
-  console.log('==================================================');
-});
+          // Start server
+          server.listen(PORT, () => {
+            console.log('==================================================');
+            console.log(`CCA-CF Survey Application started on port ${PORT}`);
+            console.log('==================================================');
+            console.log('Environment:', process.env.NODE_ENV || 'development');
+            console.log(`Running on Node.js version: ${process.version}`);
+            console.log(`Platform: ${os.platform()} ${os.release()}`);
+            console.log(`Host: ${os.hostname()}`);
+            console.log('==================================================');
+          });
 
-// Handle server errors
-server.on('error', (error) => {
-  console.error('Server error:', error);
-  
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Choose a different port.`);
-    process.exit(1);
-  }
-});
+          // Handle server errors
+          server.on('error', (error) => {
+            console.error('Server error:', error);
+            
+            if (error.code === 'EADDRINUSE') {
+              console.error(`Port ${PORT} is already in use. Choose a different port.`);
+              process.exit(1);
+            }
+          });
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-  
-  // Gracefully shutdown the server
-  server.close(() => {
-    process.exit(1);
-  });
-  
-  // If server doesn't close in 5 seconds, force exit
-  setTimeout(() => {
-    process.exit(1);
-  }, 5000);
-});
+          // Handle uncaught exceptions
+          process.on('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+            
+            // Gracefully shutdown the server
+            server.close(() => {
+              process.exit(1);
+            });
+            
+            // If server doesn't close in 5 seconds, force exit
+            setTimeout(() => {
+              process.exit(1);
+            }, 5000);
+          });
 
-// Handle unhandled rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled promise rejection:', reason);
-});
-EOL
-              echo "Created server/start.js"
-            fi
-          else
-            echo "server/start.js already exists"
-          fi
+          // Handle unhandled rejections
+          process.on('unhandledRejection', (reason, promise) => {
+            console.error('Unhandled promise rejection:', reason);
+          });
+          EOF
       
-      - name: Create data directory structure
+      - name: Create data directory and files
         run: |
           mkdir -p server/data
           
-      - name: Initialize data files
-        run: |
-          for file in server/data/{countries.json,sessions.json,admin-sessions.json,surveys.json,users.json}; do
-            if [ ! -f "$file" ]; then
-              case "$file" in
-                */countries.json)
-                  echo '{"countries":[{"id":"1","name":"Afghanistan","password":"AFpass123"},{"id":"2","name":"Albania","password":"ALpass123"},{"id":"3","name":"Algeria","password":"DZpass123"},{"id":"4","name":"Brazil","password":"BRpass123"},{"id":"5","name":"Canada","password":"CApass123"}]}' > "$file"
-                  ;;
-                *)
-                  echo '{"'$(basename "$file" .json)'":[]}' > "$file"
-                  ;;
-              esac
-              echo "Created $file"
-            fi
-          done
+          # Create countries.json
+          echo '{"countries":[{"id":"1","name":"Afghanistan","password":"AFpass123"},{"id":"2","name":"Albania","password":"ALpass123"},{"id":"3","name":"Algeria","password":"DZpass123"},{"id":"4","name":"Brazil","password":"BRpass123"},{"id":"5","name":"Canada","password":"CApass123"}]}' > server/data/countries.json
           
-      - name: Create .env file if missing
+          # Create other data files
+          echo '{"sessions":[]}' > server/data/sessions.json
+          echo '{"admin-sessions":[]}' > server/data/admin-sessions.json
+          echo '{"surveys":[]}' > server/data/surveys.json
+          echo '{"users":[]}' > server/data/users.json
+          
+      - name: Create .env file
         run: |
-          if [ ! -f ".env" ]; then
-            echo "Creating .env file..."
-            echo "PORT=8080" > .env
-            echo "NODE_ENV=production" >> .env
-            echo "JWT_SECRET=temporary_secret_key_for_deployment" >> .env
-            echo "Created .env file"
-          else
-            echo ".env already exists"
-          fi
+          echo "PORT=8080" > .env
+          echo "NODE_ENV=production" >> .env
+          echo "JWT_SECRET=temporary_secret_key_for_deployment" >> .env
       
       - name: Install dependencies
         run: npm install --omit=dev
