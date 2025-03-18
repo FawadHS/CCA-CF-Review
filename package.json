@@ -27,39 +27,20 @@ jobs:
           node-version: '22.x'
           cache: 'npm'  # Caching node_modules for faster builds
 
-      - name: Create package.json if missing
+      - name: Ensure correct .env file
         run: |
-          if [ ! -f "package.json" ]; then
-            echo "Creating package.json file..."
-            cat <<EOL > package.json
-{
-  "name": "cca-cf-survey",
-  "version": "1.0.0",
-  "description": "CCA-CF Survey Application",
-  "main": "server/app.js",
-  "scripts": {
-    "start": "node server/start.js"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "helmet": "^7.1.0",
-    "winston": "^3.11.0",
-    "express-rate-limit": "^7.1.5"
-  }
-}
+          if [ ! -f ".env" ]; then
+            echo "Creating default .env file..."
+            cat <<EOL > .env
+JWT_SECRET=your_secret_key_here
+PORT=8080
 EOL
-            echo "Created package.json"
+            echo "Created .env file"
           else
-            echo "package.json already exists"
+            echo ".env file already exists. Ensuring correct PORT..."
+            sed -i 's/^PORT=.*/PORT=8080/' .env
           fi
+          cat .env  # Debugging - Show .env content
 
       - name: Install dependencies
         run: npm install --omit=dev
@@ -120,9 +101,9 @@ EOL
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
