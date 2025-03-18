@@ -1,4 +1,4 @@
-name: CCA-CF Survey Server CI/CD
+name: CCA-CF Review Server CI/CD
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
           
           if [ ! -f "server/package.json" ]; then
             echo '{
-              "name": "cca-cf-survey-server",
+              "name": "cca-cf-review-server",
               "version": "1.0.0",
               "scripts": {
                 "lint": "echo \"No linting configured\"",
@@ -84,7 +84,7 @@ jobs:
           
           if [ ! -f "server/package.json" ]; then
             echo '{
-              "name": "cca-cf-survey-server",
+              "name": "cca-cf-review-server",
               "version": "1.0.0",
               "scripts": {
                 "start": "echo \"Server start\""
@@ -136,6 +136,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: "cca-cf-survey"
+          app-name: "cca-cf-review"
           publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
           package: release.zip
