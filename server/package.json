@@ -1,14 +1,17 @@
 {
-  "name": "server",
+  "name": "cca-cf-survey-server",
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
     "start": "node start.js",
     "dev": "nodemon start.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "lint": "eslint .",
+    "prestart": "npm run lint",
+    "prepare": "husky install"
   },
-  "keywords": ["survey", "UN", "CCA", "CF"],
-  "author": "",
+  "keywords": ["survey", "UN", "CCA", "CF", "OHCHR"],
+  "author": "OHCHR IAH-GAU Team",
   "license": "ISC",
   "description": "CCA-CF Survey Application Server",
   "dependencies": {
@@ -16,9 +19,57 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "helmet": "^7.1.0",
+    "winston": "^3.11.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "config": {
+    "port": 3000
+  },
+  "eslintConfig": {
+    "extends": "eslint:recommended",
+    "env": {
+      "node": true,
+      "es2021": true,
+      "jest": true
+    },
+    "parserOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module"
+    },
+    "rules": {
+      "no-console": "warn",
+      "eqeqeq": "error"
+    }
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "jest --findRelatedTests"
+    ]
   }
 }
