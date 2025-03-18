@@ -24,44 +24,37 @@ jobs:
         with:
           node-version: '18.x'
       
-      - name: Create web.config if missing
+      - name: Create web.config file
         run: |
-          if [ ! -f "web.config" ]; then
-            echo "Creating web.config file..."
-            cat > web.config << 'EOL'
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <system.webServer>
-    <webSocket enabled="false" />
-    <handlers>
-      <add name="iisnode" path="server/start.js" verb="*" modules="iisnode" />
-    </handlers>
-    <rewrite>
-      <rules>
-        <rule name="NodeJS">
-          <match url="/*" />
-          <action type="Rewrite" url="server/start.js" />
-        </rule>
-      </rules>
-    </rewrite>
-    <iisnode nodeProcessCommandLine="node.exe" watchedFiles="web.config;*.js" />
-    <security>
-      <requestFiltering>
-        <hiddenSegments>
-          <add segment="node_modules" />
-          <add segment="iisnode" />
-        </hiddenSegments>
-      </requestFiltering>
-    </security>
-    <httpErrors existingResponse="PassThrough" />
-  </system.webServer>
-</configuration>
-EOL
-            echo "Created web.config"
-          else
-            echo "web.config already exists"
-          fi
-
+          echo '<?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <webSocket enabled="false" />
+              <handlers>
+                <add name="iisnode" path="server/start.js" verb="*" modules="iisnode" />
+              </handlers>
+              <rewrite>
+                <rules>
+                  <rule name="NodeJS">
+                    <match url="/*" />
+                    <action type="Rewrite" url="server/start.js" />
+                  </rule>
+                </rules>
+              </rewrite>
+              <iisnode nodeProcessCommandLine="node.exe" watchedFiles="web.config;*.js" />
+              <security>
+                <requestFiltering>
+                  <hiddenSegments>
+                    <add segment="node_modules" />
+                    <add segment="iisnode" />
+                  </hiddenSegments>
+                </requestFiltering>
+              </security>
+              <httpErrors existingResponse="PassThrough" />
+            </system.webServer>
+          </configuration>' > web.config
+          echo "Created web.config"
+      
       - name: Ensure server directory and start.js
         run: |
           mkdir -p server
@@ -155,11 +148,9 @@ EOL
         run: |
           if [ ! -f ".env" ]; then
             echo "Creating .env file..."
-            cat > .env << 'EOL'
-PORT=8080
-NODE_ENV=production
-JWT_SECRET=temporary_secret_key_for_deployment
-EOL
+            echo "PORT=8080" > .env
+            echo "NODE_ENV=production" >> .env
+            echo "JWT_SECRET=temporary_secret_key_for_deployment" >> .env
             echo "Created .env file"
           else
             echo ".env already exists"
