@@ -23,7 +23,7 @@ const logger = winston.createLogger({
 // Ensure PORT is set correctly
 const PORT = process.env.PORT || 8080;
 
-// Validate environment variables
+// Validate required environment variables
 const requiredEnvVars = ['NODE_ENV', 'PORT', 'JWT_SECRET', 'ALLOWED_ORIGINS'];
 const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
 
@@ -31,6 +31,10 @@ if (missingEnvVars.length > 0) {
   logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
+
+// Debugging: Log environment variables (Remove in Production)
+logger.info(`JWT_SECRET: ${process.env.JWT_SECRET ? 'Loaded ✅' : 'Missing ❌'}`);
+logger.info(`ALLOWED_ORIGINS: ${process.env.ALLOWED_ORIGINS ? 'Loaded ✅' : 'Missing ❌'}`);
 
 // Create HTTP server
 const server = http.createServer(app);
