@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: 
       name: Production
-      url: https://cca-cf-review.azurewebsites.net
+      url: https://caa-cf-review.azurewebsites.net
 
     steps:
     - name: Download Artifact
@@ -121,15 +121,10 @@ jobs:
       with:
         name: app-release
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
-
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
-        app-name: 'cca-cf-review'
+        app-name: 'caa-cf-review'
         slot-name: 'Production'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: release.zip
@@ -139,7 +134,7 @@ jobs:
         echo "Waiting for deployment to stabilize..."
         sleep 45
         for i in {1..3}; do
-          if curl -f https://cca-cf-review.azurewebsites.net/health; then
+          if curl -f https://caa-cf-review.azurewebsites.net/health; then
             echo "✅ Health check passed"
             exit 0
           fi
