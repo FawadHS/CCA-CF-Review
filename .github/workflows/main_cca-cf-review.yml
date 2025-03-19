@@ -21,6 +21,17 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'server/package-lock.json'
     
+    - name: Load Configuration
+      run: |
+        # Replace this with the actual command to load your configuration
+        node server/config/loadConfig.js || { echo "Config load failed"; exit 1; }
+
+    - name: Debug Environment Variables
+      run: |
+        echo "JWT_SECRET is $JWT_SECRET"
+        echo "NODE_ENV is $NODE_ENV"
+        echo "PORT is $PORT"
+    
     - name: Install Server Dependencies
       working-directory: ./server
       run: npm ci --production
@@ -114,7 +125,7 @@ jobs:
         slot-name: 'Production'
         publish-profile: ${{ secrets.AZUREWEBSITES_PUBLISH_PROFILE }}
         package: release.zip
-
+    
     - name: Post-Deployment Verification
       run: |
         echo "Waiting for deployment..."
@@ -123,7 +134,7 @@ jobs:
           echo "Health check failed. Deployment may have issues."
           exit 1
         }
-
+    
     - name: Verify Deployment Logs
       run: |
         curl -f https://caa-cf-review.azurewebsites.net/api/test || {
