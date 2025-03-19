@@ -1,0 +1,33 @@
+{
+    "name": "cca-cf-review-client",
+    "version": "1.0.0",
+    "description": "Client-side for CCA-CF Survey",
+    "main": "index.html",
+    "scripts": {
+      "start": "http-server ./",
+      "build": "echo 'No build process required for static files.'",
+      "test": "echo 'No tests configured'",
+      "lint": "eslint ."
+    },
+    "dependencies": {
+      "bootstrap": "^5.3.0"
+    },
+    "devDependencies": {
+      "eslint": "^8.0.0",
+      "http-server": "^14.1.1"
+    },
+    "eslintConfig": {
+      "extends": "eslint:recommended",
+      "env": {
+        "browser": true,
+        "es2021": true
+      },
+      "rules": {
+        "no-console": "warn",
+        "no-unused-vars": "warn"
+      }
+    },
+    "author": "FawadHS",
+    "license": "MIT"
+  }
+  
