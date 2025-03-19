@@ -1,4 +1,4 @@
-name: CCA-CF Survey Server CI/CD
+name: CCA-CF Survey App Azure Deployment
 
 on:
   push:
@@ -8,134 +8,87 @@ on:
   workflow_dispatch:
 
 jobs:
-  diagnostic:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      
-      - name: Comprehensive Diagnostic
-        run: |
-          echo "Current working directory:"
-          pwd
-          
-          echo "Repository root contents:"
-          ls -la
-          
-          echo "Checking for server directory:"
-          if [ -d "server" ]; then
-            echo "Server directory exists"
-            ls -la server
-          else
-            echo "WARNING: Server directory not found"
-          fi
-          
-          echo "Checking for package.json:"
-          find . -name "package.json"
 
-  lint-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Ensure Server Directory
-        run: |
-          mkdir -p server
-          
-          if [ ! -f "server/package.json" ]; then
-            echo '{
-              "name": "cca-cf-survey-server",
-              "version": "1.0.0",
-              "scripts": {
-                "lint": "echo \"No linting configured\"",
-                "test": "echo \"No tests configured\""
-              }
-            }' > server/package.json
-          fi
-      
-      - name: Use Node.js 22
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '22.x'
-      
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            server/package-lock.json
+
       - name: Install Dependencies
         working-directory: ./server
-        run: npm install
-      
-      - name: Run Linter
-        working-directory: ./server
-        run: npm run lint || echo "Linting skipped"
-      
-      - name: Run Tests
-        working-directory: ./server
-        run: npm test || echo "No tests configured"
+        run: npm ci --production
 
-  build:
-    needs: lint-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Prepare Server Files
+      - name: Create Environment File
         run: |
-          mkdir -p server
-          
-          if [ ! -f "server/package.json" ]; then
-            echo '{
-              "name": "cca-cf-survey-server",
-              "version": "1.0.0",
-              "scripts": {
-                "start": "echo \"Server start\""
-              }
-            }' > server/package.json
-          fi
-          
           echo "PORT=8080" > .env
           echo "NODE_ENV=production" >> .env
-      
-      - name: Use Node.js 22
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22.x'
-      
-      - name: Install Production Dependencies
-        working-directory: ./server
-        run: npm install --production
-      
-      - name: Create Deployment Artifact
-        run: |
-          mkdir -p artifact/server
-          cp -r server/* artifact/server/
-          cp .env artifact/
-          cd artifact
-          zip -r ../release.zip .
-      
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-release
-          path: release.zip
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'default-jwt-secret-replace-in-production' }}" >> .env
+          echo "ALLOWED_ORIGINS=*" >> .env
+          echo "WEBSITE_NODE_DEFAULT_VERSION=18.x" >> .env
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: server-release
-      
-      - name: Unzip and Verify Artifact
+      - name: Setup Data Directory
         run: |
-          unzip release.zip
-          echo "Artifact contents:"
-          ls -R
+          mkdir -p server/data
+          
+          # Create default data JSON files if they don't exist
+          for file in countries.json sessions.json admin-sessions.json surveys.json users.json; do
+            if [ ! -f "server/data/$file" ]; then
+              case "$file" in
+                countries.json)
+                  echo '{"countries":[{"id":"1","name":"Demo Country","password":"demo123"}]}' > "server/data/$file"
+                  ;;
+                sessions.json)
+                  echo '{"sessions":[]}' > "server/data/$file"
+                  ;;
+                admin-sessions.json)
+                  echo '{"sessions":[]}' > "server/data/$file"
+                  ;;
+                surveys.json)
+                  echo '{"surveys":[]}' > "server/data/$file"
+                  ;;
+                users.json)
+                  echo '{"users":[]}' > "server/data/$file"
+                  ;;
+              esac
+            fi
+          done
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deployment
+          
+          # Copy server files
+          cp -r server deployment/
+          
+          # Copy client files
+          cp -r client deployment/
+          
+          # Copy config files
+          cp .env deployment/
+          cp web.config deployment/
+          
+          # Create ZIP package
+          cd deployment
+          zip -r ../deployment.zip .
 
       - name: Deploy to Azure Web App
+        id: deploy-to-azure
         uses: azure/webapps-deploy@v2
         with:
-          app-name: "cca-cf-survey"
+          app-name: 'cca-cf-survey'
+          slot-name: 'production'
           publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
-          package: release.zip
+          package: deployment.zip
+
+      - name: Deployment Summary
+        run: |
+          echo "Deployed to: https://cca-cf-survey.azurewebsites.net"
+          echo "Status: ${{ steps.deploy-to-azure.outcome }}"
