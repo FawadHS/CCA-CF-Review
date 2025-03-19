@@ -4,16 +4,26 @@ import os from 'os';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 // ES Module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
+// Load environment variables - search in multiple locations
 dotenv.config({ 
   path: path.resolve(__dirname, '.env') 
 });
+dotenv.config({ 
+  path: path.resolve(__dirname, '../.env') 
+});
+
+console.log('Starting application...');
+console.log('Current directory:', process.cwd());
+console.log('Server directory:', __dirname);
+console.log('Environment:', process.env.NODE_ENV || 'development');
 
 // Enhanced logging configuration
 const logFormat = winston.format.combine(
@@ -22,6 +32,17 @@ const logFormat = winston.format.combine(
   winston.format.splat(),
   winston.format.json()
 );
+
+// Ensure critical directories exist before creating logger
+try {
+  const logsDir = path.join(__dirname, 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+    console.log(`Created logs directory: ${logsDir}`);
+  }
+} catch (err) {
+  console.error('Failed to create logs directory:', err);
+}
 
 // Create a logger instance with more robust configuration
 const logger = winston.createLogger({
@@ -50,14 +71,15 @@ const logger = winston.createLogger({
   ]
 });
 
-// Ensure critical directories exist
+// Also ensure data directory exists
 try {
-  const logsDir = path.join(__dirname, 'logs');
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    logger.info(`Created data directory: ${dataDir}`);
   }
 } catch (err) {
-  logger.error('Failed to create logs directory:', err);
+  logger.error('Failed to create data directory:', err);
 }
 
 // Robust port configuration
@@ -87,16 +109,20 @@ const validateEnvVariables = () => {
 // Validate and set environment variables
 validateEnvVariables();
 
-// Create HTTP server with improved error handling
-const server = http.createServer({
-  IncomingMessage: http.IncomingMessage,
-  ServerResponse: http.ServerResponse
-}, app);
+// Create HTTP server
+let server;
 
-// Configure server timeouts
-server.setTimeout(30000); // 30 seconds
-server.keepAliveTimeout = 61000; // 61 seconds
-server.headersTimeout = 65000; // 65 seconds
+try {
+  server = http.createServer(app);
+
+  // Configure server timeouts
+  server.setTimeout(30000); // 30 seconds
+  server.keepAliveTimeout = 61000; // 61 seconds
+  server.headersTimeout = 65000; // 65 seconds
+} catch (error) {
+  logger.error('Error creating HTTP server:', error);
+  process.exit(1);
+}
 
 // Retry configuration for server startup
 const MAX_RETRIES = 3;
@@ -106,24 +132,36 @@ const startServer = () => {
   let retryCount = 0;
 
   const attemptStart = () => {
-    server.listen(PORT, HOST, () => {
-      logger.info('==================================================');
-      logger.info(`Application: CCA-CF Survey`);
-      logger.info(`Environment: ${process.env.NODE_ENV}`);
-      logger.info(`Listening on: ${HOST}:${PORT}`);
-      logger.info('==================================================');
-      logger.info(`Node.js: ${process.version}`);
-      logger.info(`Platform: ${os.platform()} ${os.release()}`);
-      logger.info(`Hostname: ${os.hostname()}`);
-      logger.info('==================================================');
-      logger.info('Available Routes:');
-      logger.info('- /: Root page');
-      logger.info('- /health: Health check endpoint');
-      logger.info('- /api/auth/*: Authentication routes');
-      logger.info('- /api/survey/*: Survey routes');
-      logger.info('- /api/admin/*: Admin routes');
-      logger.info('==================================================');
-    });
+    try {
+      server.listen(PORT, HOST, () => {
+        logger.info('==================================================');
+        logger.info(`Application: CCA-CF Survey`);
+        logger.info(`Environment: ${process.env.NODE_ENV}`);
+        logger.info(`Listening on: ${HOST}:${PORT}`);
+        logger.info('==================================================');
+        logger.info(`Node.js: ${process.version}`);
+        logger.info(`Platform: ${os.platform()} ${os.release()}`);
+        logger.info(`Hostname: ${os.hostname()}`);
+        logger.info('==================================================');
+        logger.info('Available Routes:');
+        logger.info('- /: Root page');
+        logger.info('- /health: Health check endpoint');
+        logger.info('- /api/auth/*: Authentication routes');
+        logger.info('- /api/survey/*: Survey routes');
+        logger.info('- /api/admin/*: Admin routes');
+        logger.info('==================================================');
+      });
+    } catch (error) {
+      logger.error('Error starting server:', error);
+      if (retryCount < MAX_RETRIES) {
+        retryCount++;
+        logger.warn(`Server start error. Retry attempt ${retryCount}`);
+        setTimeout(attemptStart, RETRY_DELAY);
+      } else {
+        logger.error(`Failed to start server after ${MAX_RETRIES} attempts`);
+        process.exit(1);
+      }
+    }
   };
 
   server.on('error', (error) => {
