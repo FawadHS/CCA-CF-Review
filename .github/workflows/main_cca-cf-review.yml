@@ -47,7 +47,8 @@ jobs:
         cp -r client/* deployment/client/
         
         # Create environment file
-        echo "PORT=8080" > deployment/.env
+        cp .env deployment/.env
+        echo "PORT=8080" >> deployment/.env
         echo "NODE_ENV=production" >> deployment/.env
         echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'fallback-secret-for-testing' }}" >> deployment/.env
         echo "WEBSITE_NODE_DEFAULT_VERSION=22.x" >> deployment/.env
