@@ -38,22 +38,23 @@ jobs:
       run: |
         if [ ! -f "package-lock.json" ]; then
           echo "No package-lock.json found, running npm install first"
-          npm install
+          npm install --no-audit
         else
-          npm ci
+          npm ci --no-audit
         fi
-        npm audit fix || true
-
+        # Run lint in warning mode only
+        npm run lint:fix || true
+        
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
         if [ ! -f "package-lock.json" ]; then
           echo "No package-lock.json found, running npm install first"
-          npm install
+          npm install --no-audit
         else
-          npm ci
+          npm ci --no-audit
         fi
-        npm audit fix || true
+        npm run lint || echo "Linting issues found but continuing build"
 
     - name: Prepare Deployment Package
       run: |
