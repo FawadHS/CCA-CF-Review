@@ -1,15 +1,17 @@
-// server/config/loadConfig.js
-const fs = require('fs');
-const path = require('path');
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
-// Define the path to your config file
-const configPath = path.join(__dirname, 'config.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Check if the config file exists
-if (fs.existsSync(configPath)) {
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  console.log('Configuration loaded successfully:', config);
+const configPath = join(__dirname, 'config.json');
+
+if (existsSync(configPath)) {
+  const configData = readFileSync(configPath, 'utf-8');
+  const config = JSON.parse(configData);
+  console.log('✅ Configuration loaded successfully:', config);
 } else {
-  console.error('Configuration file not found!');
-  process.exit(1); // Exit the process if config file is missing
+  console.error('❌ Configuration file not found!');
+  process.exit(1);
 }
