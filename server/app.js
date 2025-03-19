@@ -1,149 +1,238 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-const fs = require('fs');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const winston = require('winston');
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import winston from 'winston';
+import crypto from 'crypto';
+
+// ES Module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const surveyRoutes = require('./routes/survey');
-const adminRoutes = require('./routes/admin');
+import authRoutes from './routes/auth.js';
+import surveyRoutes from './routes/survey.js';
+import adminRoutes from './routes/admin.js';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ 
+  path: path.resolve(__dirname, '.env') 
+});
 
-// Create a logger instance
+// Enhanced logging configuration
+const logFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
+  winston.format.splat(),
+  winston.format.json()
+);
+
+// Create a logger instance with more robust configuration
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
+  format: logFormat,
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    }),
+    new winston.transports.File({ 
+      filename: path.join(__dirname, 'logs', 'server.log'),
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+      tailable: true
+    }),
+    new winston.transports.File({ 
+      filename: path.join(__dirname, 'logs', 'error.log'), 
+      level: 'error',
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+      tailable: true
+    })
   ]
 });
+
+// Ensure critical directories exist
+try {
+  const logsDir = path.join(__dirname, 'logs');
+  const dataDir = path.join(__dirname, 'data');
+  
+  [logsDir, dataDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+} catch (err) {
+  logger.error('Failed to create necessary directories:', err);
+}
 
 // Create Express app
 const app = express();
 
-// Enable trust proxy for Azure deployment
-app.set('trust proxy', 1);
+// Enhanced configuration and security
+app.disable('x-powered-by');
+app.set('trust proxy', true);
 
-// Configure rate limiting
-const limiter = rateLimit({
+// Comprehensive CORS configuration
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+// Advanced rate limiting
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: (req) => {
+    // Different rate limits based on route
+    if (req.url.startsWith('/api/admin')) return 50; // More restrictive for admin routes
+    return 100; // Standard limit for other routes
+  },
+  message: 'Too many requests, please try again later',
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skipFailedRequests: true
 });
 
-// Apply security middleware
-app.use(helmet({
-  contentSecurityPolicy: false // Disabled to allow inline scripts (should be enabled in production)
+// Security middleware configuration
+const helmetConfig = {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"]
+    }
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true,
+  noSniff: true,
+  frameguard: { action: 'deny' }
+};
+
+// Middleware application
+app.use(helmet(helmetConfig));
+app.use(cors(corsOptions));
+app.use('/api/', apiLimiter);
+app.use(bodyParser.json({ 
+  limit: '10kb',  // Prevent large payload attacks
+  verify: (req, res, buf) => {
+    try {
+      JSON.parse(buf.toString());
+    } catch (e) {
+      res.status(400).json({ error: 'Invalid JSON' });
+    }
+  }
 }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10kb' }));
 
-// Apply rate limiting to API routes
-app.use('/api/', limiter);
-
-// Enable CORS
-app.use(cors());
-
-// Parse JSON bodies
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
-}
-
-// Ensure required files exist
-const requiredFiles = ['countries.json', 'sessions.json', 'admin-sessions.json', 'surveys.json', 'users.json'];
-requiredFiles.forEach(file => {
-  const filePath = path.join(dataDir, file);
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify({ data: [] }, null, 2));
-    logger.info(`Created missing data file: ${file}`);
-  }
-});
-
-// JWT verification middleware
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1] || req.body.token;
-
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'No token provided' });
-  }
-
+// Token verification middleware with enhanced security
+const verifyToken = async (req, res, next) => {
   try {
-    const sessionsFile = path.join(__dirname, 'data', 'sessions.json');
-    if (!fs.existsSync(sessionsFile)) {
-      fs.writeFileSync(sessionsFile, JSON.stringify({ sessions: [] }, null, 2));
-      logger.warn('Created missing sessions.json file');
+    const token = req.headers.authorization?.split(' ')[1] || req.body.token;
+
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication token required' 
+      });
     }
 
+    // More robust token verification logic would go here
+    // This is a placeholder and should be replaced with proper JWT verification
+    const sessionsFile = path.join(__dirname, 'data', 'sessions.json');
     const sessions = JSON.parse(fs.readFileSync(sessionsFile, 'utf8')).sessions;
     const session = sessions.find(s => s.token === token);
 
     if (!session) {
-      return res.status(401).json({ success: false, message: 'Invalid token' });
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid or expired token' 
+      });
     }
 
-    req.user = { country: session.country, username: session.username };
+    req.user = { 
+      country: session.country, 
+      username: session.username 
+    };
     next();
   } catch (error) {
     logger.error('Token verification error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to authenticate token' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error during authentication' 
+    });
   }
 };
 
-// Serve static files
-app.use(express.static(path.join(__dirname, '../client')));
+// Static file serving with security headers
+app.use(express.static(path.join(__dirname, '../client'), {
+  setHeaders: (res) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+  }
+}));
 
-// API routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/survey', verifyToken, surveyRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Root route
+// Root and health check routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../client', 'index.html'));
 });
 
-// Health check endpoint for Azure
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'UP',
     version: process.version,
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    deploymentInfo: {
+      platform: 'Azure Web App',
+      resourceGroup: 'rg-iah-dev-gau-cca-cf',
+      domain: 'caa-cf-review.azurewebsites.net'
+    }
   });
 });
 
-// Error handling middleware
+// Enhanced error handling middleware
 app.use((err, req, res, next) => {
-  logger.error(`Error: ${err.message}`, { stack: err.stack });
-
-  res.status(err.status || 500).json({
+  const statusCode = err.status || 500;
+  const errorResponse = {
     success: false,
-    message: err.message || 'Internal Server Error'
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  };
+
+  logger.error(`Error: ${err.message}`, { 
+    status: statusCode, 
+    path: req.path,
+    method: req.method,
+    stack: err.stack 
   });
+
+  res.status(statusCode).json(errorResponse);
 });
 
-// Handle 404 errors
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Resource not found'
+    message: 'Endpoint not found',
+    requestedUrl: req.url
   });
 });
 
-// Export the app
-module.exports = app;
+export default app;
