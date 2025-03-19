@@ -1,0 +1,61 @@
+{
+    "port": 8080,
+    "host": "0.0.0.0",
+    "environment": "production",
+    "jwtSecret": "UNGAUIAH-ohchr2577$",
+    "logging": {
+      "level": "info",
+      "file": "logs/server.log",
+      "errorFile": "logs/error.log",
+      "maxSize": 5242880,
+      "maxFiles": 5
+    },
+    "rateLimit": {
+      "windowMs": 60000,
+      "maxRequests": 100
+    },
+    "cors": {
+      "allowedOrigins": [
+        "https://cca-cf-review.azurewebsites.net",
+        "http://localhost:8080"
+      ],
+      "methods": ["GET", "POST", "PUT", "DELETE"],
+      "allowedHeaders": ["Content-Type", "Authorization"]
+    },
+    "azure": {
+      "resourceGroup": "rg-iah-dev-gau-cca-cf",
+      "subscription": "OHCHR-IAH-DEV",
+      "domain": "cca-cf-review.azurewebsites.net",
+      "appServicePlan": "IAH-GAU-CCA-CF",
+      "runtimeStack": "Node 22 LTS",
+      "operatingSystem": "Linux"
+    },
+    "security": {
+      "passwordSaltRounds": 10,
+      "tokenExpiration": "24h"
+    },
+    "features": {
+      "enableSurveyAutosave": true,
+      "enableAnalytics": true
+    },
+    "dataFiles": {
+      "adminSessions": "server/data/admin-sessions.json",
+      "countries": "server/data/countries.json",
+      "sessions": "server/data/sessions.json",
+      "surveys": "server/data/surveys.json",
+      "users": "server/data/users.json"
+    },
+    "surveySettings": {
+      "autosaveIntervalMs": 300000,
+      "maxSurveyResponses": 5000,
+      "surveyExpirationDays": 30
+    },
+    "server": {
+      "keepAliveTimeout": 61000,
+      "headersTimeout": 65000,
+      "maxRetries": 3,
+      "retryDelayMs": 3000,
+      "shutdownTimeoutMs": 10000
+    }
+  }
+  

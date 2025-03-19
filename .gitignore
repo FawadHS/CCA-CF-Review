@@ -1,13 +1,13 @@
 # Node.js dependencies
 node_modules/
-/server/node_modules/
-/client/node_modules/
+server/node_modules/
+client/node_modules/
 
 # Build directories
 /dist/
 /build/
-/client/build/
-/client/dist/
+client/build/
+client/dist/
 
 # Environment files
 .env
@@ -35,7 +35,13 @@ pids/
 
 # Azure and deployment
 .deployment
-.vscode/settings.json
+.vscode/
+
+# Temporary build artifacts
+.azure/
+tmp/
+deployment/
+release.zip
 
 # Testing
 /coverage/
@@ -66,3 +72,7 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# Ensure essential config files and workflows are included
+!server/config/config.json
+!.github/workflows/*
