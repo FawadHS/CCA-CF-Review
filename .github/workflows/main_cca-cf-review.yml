@@ -19,8 +19,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
-        cache: 'npm'
-        cache-dependency-path: 'server/package-lock.json'
 
     - name: Verify Configuration File
       run: |
@@ -36,20 +34,14 @@ jobs:
     - name: Install Server Dependencies
       working-directory: ./server
       run: |
-        if [ ! -f "package.json" ]; then
-          echo "Error: package.json not found in server directory"
-          exit 1
-        fi
+        echo "Installing server dependencies..."
         npm install --no-audit
         npm run lint:fix || true
         
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
-        if [ ! -f "package.json" ]; then
-          echo "Error: package.json not found in client directory"
-          exit 1
-        fi
+        echo "Installing client dependencies..."
         npm install --no-audit
         npm run lint || echo "Linting issues found but continuing build"
 
