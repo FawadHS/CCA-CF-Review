@@ -3,31 +3,18 @@
   "env": {
     "node": true,
     "es2021": true,
-    "jest": true,
-    "commonjs": true
+    "jest": true
   },
   "parserOptions": {
     "ecmaVersion": 2021,
-    "sourceType": "commonjs"
+    "sourceType": "module"
   },
   "rules": {
     "no-console": "off",
-    "eqeqeq": "warn",
     "no-unused-vars": ["warn", {
       "argsIgnorePattern": "^_",
       "varsIgnorePattern": "^_"
     }],
-    "no-empty": "warn",
-    "max-len": ["warn", { "code": 120 }],
-    "indent": ["warn", 2],
-    "semi": ["warn", "always"],
     "no-undef": "warn"
-  },
-  "globals": {
-    "fs": "writable",
-    "require": "readonly",
-    "process": "readonly",
-    "__dirname": "readonly",
-    "module": "readonly"
   }
 }

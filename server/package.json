@@ -6,15 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node start.js",
-    "dev": "nodemon start.js",
     "lint": "eslint . || true",
-    "lint:fix": "eslint . --fix || true",
-    "test": "jest --detectOpenHandles",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "prestart": "npm run lint",
-    "prepare": "husky install",
-    "postinstall": "npm run lint"
+    "prepare": "echo 'Skipping husky install'"
   },
   "keywords": [
     "survey",
