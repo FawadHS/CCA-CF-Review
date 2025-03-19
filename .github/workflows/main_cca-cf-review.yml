@@ -36,38 +36,21 @@ jobs:
     - name: Install Server Dependencies
       working-directory: ./server
       run: |
-        if [ -f "package-lock.json" ]; then
-          echo "Installing dependencies using npm ci"
-          npm ci
-        else
-          echo "No package-lock.json found, running npm install"
-          npm install
-          # Commit the generated package-lock.json
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add package-lock.json
-          git commit -m "Add package-lock.json [skip ci]" || echo "No changes to commit"
-          git push || echo "Could not push changes"
+        if [ ! -f "package.json" ]; then
+          echo "Error: package.json not found in server directory"
+          exit 1
         fi
-        # Run lint in warning mode only
+        npm install --no-audit
         npm run lint:fix || true
         
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
-        if [ -f "package-lock.json" ]; then
-          echo "Installing dependencies using npm ci"
-          npm ci
-        else
-          echo "No package-lock.json found, running npm install"
-          npm install
-          # Commit the generated package-lock.json
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add package-lock.json
-          git commit -m "Add package-lock.json [skip ci]" || echo "No changes to commit"
-          git push || echo "Could not push changes"
+        if [ ! -f "package.json" ]; then
+          echo "Error: package.json not found in client directory"
+          exit 1
         fi
+        npm install --no-audit
         npm run lint || echo "Linting issues found but continuing build"
 
     - name: Prepare Deployment Package
