@@ -121,12 +121,17 @@ jobs:
       with:
         name: app-release
 
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
+
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'cca-cf-review'
         slot-name: 'Production'
-        publish-profile: ${{ secrets.AZUREWEBSITES_PUBLISH_PROFILE }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
         package: release.zip
 
     - name: Post-Deployment Health Check
