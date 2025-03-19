@@ -1,149 +1,120 @@
-name: Build and deploy Node.js app to Azure Web App - caa-cf-review
+name: Azure Web App Deployment
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Node.js version
+    - name: Use Node.js 22.x
       uses: actions/setup-node@v3
       with:
         node-version: '22.x'
         cache: 'npm'
-        cache-dependency-path: |
-          server/package-lock.json
+        cache-dependency-path: 'server/package-lock.json'
     
-    - name: Install server dependencies
+    - name: Install Server Dependencies
       working-directory: ./server
       run: npm ci --production
     
-    - name: Create environment file
+    - name: Prepare Deployment Package
       run: |
-        echo "PORT=8080" > .env
-        echo "NODE_ENV=production" >> .env
-        echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'default-jwt-secret-replace-in-production' }}" >> .env
-        echo "ALLOWED_ORIGINS=*" >> .env
-        echo "WEBSITE_NODE_DEFAULT_VERSION=22.x" >> .env
-        echo "DEPLOYMENT_VERSION=$(date +'%Y%m%d%H%M%S')" >> .env
-    
-    - name: Setup data directory
-      run: |
-        mkdir -p server/data
-        
-        # Create default data JSON files if they don't exist
-        for file in countries.json sessions.json admin-sessions.json surveys.json users.json; do
-          if [ ! -f "server/data/$file" ]; then
-            case "$file" in
-              countries.json)
-                echo '{"countries":[{"id":"1","name":"Demo Country","password":"demo123"}]}' > "server/data/$file"
-                ;;
-              sessions.json)
-                echo '{"sessions":[]}' > "server/data/$file"
-                ;;
-              admin-sessions.json)
-                echo '{"sessions":[]}' > "server/data/$file"
-                ;;
-              surveys.json)
-                echo '{"surveys":[]}' > "server/data/$file"
-                ;;
-              users.json)
-                echo '{"users":[]}' > "server/data/$file"
-                ;;
-            esac
-          fi
-        done
-    
-    - name: Make deploy.sh executable
-      run: |
-        if [ -f "deploy.sh" ]; then
-          chmod +x deploy.sh
-          echo "Made deploy.sh executable"
-        else
-          echo "deploy.sh not found, skipping"
-        fi
-    
-    - name: Create deployment package
-      run: |
-        mkdir -p deployment
+        mkdir -p deployment/server
+        mkdir -p deployment/client
+        mkdir -p deployment/data
         
         # Copy server files
-        cp -r server deployment/
+        cp -r server/node_modules deployment/server/
+        cp server/*.js deployment/server/
+        cp server/package.json deployment/server/
+        
+        # Copy data directory (if it exists)
+        cp -r server/data deployment/server/ || mkdir -p deployment/server/data
         
         # Copy client files
-        cp -r client deployment/
+        cp -r client/* deployment/client/
         
-        # Copy config files
-        cp .env deployment/
-        cp web.config deployment/
-        
-        # Copy deployment script
-        if [ -f "deploy.sh" ]; then
-          cp deploy.sh deployment/
-        fi
-        
-        # Create ZIP package
+        # Create environment file
+        echo "PORT=8080" > deployment/.env
+        echo "NODE_ENV=production" >> deployment/.env
+        echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'fallback-secret-for-testing' }}" >> deployment/.env
+        echo "WEBSITE_NODE_DEFAULT_VERSION=22.x" >> deployment/.env
+    
+    - name: Create web.config for Azure
+      run: |
+        cat > deployment/web.config << 'EOL'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <system.webServer>
+            <handlers>
+              <add name="iisnode" path="server/start.js" verb="*" modules="iisnode"/>
+            </handlers>
+            <rewrite>
+              <rules>
+                <rule name="StaticContent">
+                  <match url="(.*)" />
+                  <action type="Rewrite" url="client/{R:1}"/>
+                </rule>
+                <rule name="NodeServer">
+                  <match url=".*" />
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True" />
+                    <add input="{REQUEST_URI}" pattern="^/api" />
+                  </conditions>
+                  <action type="Rewrite" url="server/start.js"/>
+                </rule>
+              </rules>
+            </rewrite>
+          </system.webServer>
+        </configuration>
+        EOL
+    
+    - name: Create Deployment Package
+      run: |
         cd deployment
         zip -r ../release.zip .
     
-    - name: Upload artifact for deployment job
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: node-app
+        name: app-release
         path: release.zip
+        retention-days: 5
 
   deploy:
-    runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    runs-on: ubuntu-latest
+    environment: 
+      name: Production
+      url: https://caa-cf-review.azurewebsites.net
     
     steps:
-    - name: Download artifact from build job
+    - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
-        name: node-app
+        name: app-release
     
-    - name: Unzip artifact for deployment
-      run: unzip release.zip
-    
-    - name: 'Deploy to Azure Web App'
-      id: deploy-to-webapp
-      uses: azure/webapps-deploy@v3
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
       with:
         app-name: 'caa-cf-review'
         slot-name: 'Production'
-        package: .
-        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_997A581F49C2492DAB51313EA437B3F3 }}
-    
-    - name: Run post-deployment steps
+        publish-profile: ${{ secrets.AZUREWEBSITES_PUBLISH_PROFILE }}
+        package: release.zip
+
+    - name: Post-Deployment Verification
       run: |
-        if [ -f "deploy.sh" ]; then
-          chmod +x ./deploy.sh
-          ./deploy.sh
-        fi
-    
-    - name: Verify deployment
-      run: |
-        echo "Waiting for deployment to stabilize..."
+        echo "Waiting for deployment..."
         sleep 30
-        
-        echo "Checking app URL..."
-        curl -m 30 -sSf https://caa-cf-review.azurewebsites.net/health || echo "Health check failed, but deployment may still be in progress"
-    
-    - name: Deployment summary
-      run: |
-        echo "=== Deployment Summary ==="
-        echo "Deployed to: https://caa-cf-review.azurewebsites.net"
-        echo "Version: $(grep DEPLOYMENT_VERSION .env | cut -d= -f2 || echo 'unknown')"
-        echo "Timestamp: $(date +'%Y-%m-%d %H:%M:%S')"
-        echo "=========================="
+        curl -f https://caa-cf-review.azurewebsites.net/health || {
+          echo "Health check failed. Deployment may have issues."
+          exit 1
+        }
