@@ -36,13 +36,23 @@ jobs:
     - name: Install Server Dependencies
       working-directory: ./server
       run: |
-        npm ci
+        if [ ! -f "package-lock.json" ]; then
+          echo "No package-lock.json found, running npm install first"
+          npm install
+        else
+          npm ci
+        fi
         npm audit fix || true
 
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
-        npm ci
+        if [ ! -f "package-lock.json" ]; then
+          echo "No package-lock.json found, running npm install first"
+          npm install
+        else
+          npm ci
+        fi
         npm audit fix || true
 
     - name: Prepare Deployment Package
