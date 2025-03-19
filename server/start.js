@@ -3,38 +3,53 @@ const http = require('http');
 const os = require('os');
 const dotenv = require('dotenv');
 const winston = require('winston');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
 
-// Create a logger instance for better debugging
+// Create a logger instance
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
   ),
   transports: [
     new winston.transports.Console(),
-    new winston.transports.File({ filename: 'server.log' })
+    new winston.transports.File({ 
+      filename: path.join(__dirname, 'server.log'),
+      maxsize: 5242880, // 5MB
+      maxFiles: 5
+    })
   ]
 });
 
-// Ensure PORT is set correctly
+// Ensure PORT is set correctly - Azure provides process.env.PORT
 const PORT = process.env.PORT || 8080;
 
-// Validate required environment variables
-const requiredEnvVars = ['NODE_ENV', 'PORT', 'JWT_SECRET', 'ALLOWED_ORIGINS'];
-const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
-
-if (missingEnvVars.length > 0) {
-  logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-  process.exit(1);
+// Set default values for required environment variables if not present
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'production';
+  logger.warn('NODE_ENV not set, defaulting to production');
 }
 
-// Debugging: Log environment variables (Remove in Production)
-logger.info(`JWT_SECRET: ${process.env.JWT_SECRET ? 'Loaded ✅' : 'Missing ❌'}`);
-logger.info(`ALLOWED_ORIGINS: ${process.env.ALLOWED_ORIGINS ? 'Loaded ✅' : 'Missing ❌'}`);
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'default-jwt-secret-' + Date.now();
+  logger.warn('JWT_SECRET not set, using generated secret (insecure for production)');
+}
+
+if (!process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS = '*';
+  logger.warn('ALLOWED_ORIGINS not set, defaulting to allow all origins');
+}
+
+// Log environment information
+logger.info(`Starting server with configuration:`);
+logger.info(`NODE_ENV: ${process.env.NODE_ENV}`);
+logger.info(`PORT: ${PORT}`);
+logger.info(`JWT_SECRET: ${process.env.JWT_SECRET ? 'Set (value hidden)' : 'Not set'}`);
+logger.info(`ALLOWED_ORIGINS: ${process.env.ALLOWED_ORIGINS}`);
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -44,11 +59,11 @@ let retryCount = 0;
 const MAX_RETRIES = 3;
 
 const startServer = () => {
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, () => {
     logger.info('==================================================');
     logger.info(`CCA-CF Survey Application started on port ${PORT}`);
     logger.info('==================================================');
-    logger.info(`Environment: ${process.env.NODE_ENV || 'production'}`);
+    logger.info(`Environment: ${process.env.NODE_ENV}`);
     logger.info(`Running on Node.js version: ${process.version}`);
     logger.info(`Platform: ${os.platform()} ${os.release()}`);
     logger.info(`Host: ${os.hostname()}`);
@@ -101,8 +116,8 @@ const shutdown = (signal) => {
 };
 
 // Listen for termination signals
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
