@@ -36,7 +36,9 @@ jobs:
       run: |
         echo "Installing server dependencies..."
         npm install --no-audit --legacy-peer-deps --no-package-lock
-        # Skip lint errors for now
+        # Copy node_modules before running lint
+        mkdir -p ../deployment/server/node_modules
+        cp -r node_modules/* ../deployment/server/node_modules/ || true
         npm run lint || true
         
     - name: Install Client Dependencies
@@ -51,13 +53,10 @@ jobs:
         mkdir -p deployment/server deployment/client
         
         # Copy server files
-        cp -r server/node_modules server/*.js server/package*.json deployment/server/
-        
-        # Ensure data directory exists
-        mkdir -p deployment/server/data
+        cp -r server/*.js server/package*.json deployment/server/ || true
         
         # Copy client files
-        cp -r client/* deployment/client/
+        cp -r client/* deployment/client/ || true
         
         # Create environment file
         cat > deployment/.env << EOL
