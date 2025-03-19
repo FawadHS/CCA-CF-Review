@@ -26,13 +26,14 @@ jobs:
         working-directory: ./server
         run: npm ci --production
 
-      - name: Create Environment File
+      - name: Set version and create environment file
         run: |
           echo "PORT=8080" > .env
           echo "NODE_ENV=production" >> .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET || 'default-jwt-secret-replace-in-production' }}" >> .env
           echo "ALLOWED_ORIGINS=*" >> .env
           echo "WEBSITE_NODE_DEFAULT_VERSION=18.x" >> .env
+          echo "DEPLOYMENT_VERSION=$(date +'%Y%m%d%H%M%S')" >> .env
 
       - name: Setup Data Directory
         run: |
@@ -61,6 +62,15 @@ jobs:
             fi
           done
 
+      - name: Make deploy.sh executable
+        run: |
+          if [ -f "deploy.sh" ]; then
+            chmod +x deploy.sh
+            echo "Made deploy.sh executable"
+          else
+            echo "deploy.sh not found, skipping"
+          fi
+
       - name: Create deployment package
         run: |
           mkdir -p deployment
@@ -75,9 +85,21 @@ jobs:
           cp .env deployment/
           cp web.config deployment/
           
+          # Copy deployment script
+          if [ -f "deploy.sh" ]; then
+            cp deploy.sh deployment/
+            echo "Included deploy.sh in deployment package"
+          fi
+          
           # Create ZIP package
           cd deployment
           zip -r ../deployment.zip .
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        # If you don't have AZURE_CREDENTIALS, you can comment out this step
 
       - name: Deploy to Azure Web App
         id: deploy-to-azure
@@ -88,7 +110,26 @@ jobs:
           publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
           package: deployment.zip
 
+      - name: Post-deployment script execution
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'cca-cf-survey'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_CREDENTIALS }}
+          startup-command: 'if [ -f "deploy.sh" ]; then chmod +x ./deploy.sh && ./deploy.sh; else echo "No deploy.sh found"; fi'
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          
+          echo "Checking health endpoint..."
+          curl -m 30 -sSf https://cca-cf-survey.azurewebsites.net/health || echo "Health check failed, but deployment may still be in progress"
+
       - name: Deployment Summary
         run: |
+          echo "=== Deployment Summary ==="
           echo "Deployed to: https://cca-cf-survey.azurewebsites.net"
           echo "Status: ${{ steps.deploy-to-azure.outcome }}"
+          echo "Version: $(grep DEPLOYMENT_VERSION .env | cut -d= -f2)"
+          echo "Timestamp: $(date +'%Y-%m-%d %H:%M:%S')"
+          echo "=========================="
