@@ -31,14 +31,43 @@ jobs:
       run: |
         node server/config/loadConfig.js || { echo "Config load failed"; exit 1; }
 
+    - name: Create Root Package.json
+      run: |
+        cat > package.json << 'EOL'
+        {
+          "name": "cca-cf-review",
+          "version": "1.0.0",
+          "description": "UN Common Country Assessment and Cooperation Framework Survey Platform for OHCHR IAH-DEV",
+          "private": true,
+          "type": "module",
+          "main": "server/start.js",
+          "scripts": {
+            "start": "node server/start.js",
+            "postinstall": "cd server && npm install --production"
+          },
+          "engines": {
+            "node": ">=20.0.0",
+            "npm": ">=10.0.0"
+          },
+          "dependencies": {
+            "express": "^4.21.2",
+            "cors": "^2.8.5",
+            "dotenv": "^16.4.7",
+            "helmet": "^8.1.0",
+            "body-parser": "^1.20.2",
+            "winston": "^3.17.0",
+            "fs": "^0.0.1-security",
+            "express-rate-limit": "^7.5.0",
+            "jsonwebtoken": "^9.0.2"
+          }
+        }
+        EOL
+
     - name: Install Server Dependencies
       working-directory: ./server
       run: |
         echo "Installing server dependencies..."
         npm install --no-audit --legacy-peer-deps --no-package-lock
-        # Copy node_modules before running lint
-        mkdir -p ../deployment/server/node_modules
-        cp -r node_modules/* ../deployment/server/node_modules/ || true
         npm run lint || true
         
     - name: Install Client Dependencies
@@ -50,13 +79,36 @@ jobs:
 
     - name: Prepare Deployment Package
       run: |
-        mkdir -p deployment/server deployment/client
+        mkdir -p deployment/server/data deployment/server/logs deployment/client
+        
+        # Copy package.json to root
+        cp package.json deployment/
         
         # Copy server files
-        cp -r server/*.js server/package*.json deployment/server/ || true
+        cp -r server/*.js server/package.json deployment/server/
+        
+        # Copy config directory
+        mkdir -p deployment/server/config
+        cp -r server/config/* deployment/server/config/
+        
+        # Copy data files
+        cp -r server/data/*.json deployment/server/data/
+        
+        # Create necessary server directories
+        mkdir -p deployment/server/routes deployment/server/utils
+        
+        # Copy route files if they exist (with proper extension)
+        if [ -d "server/routes" ]; then
+          find server/routes -name "*.js" -exec cp {} deployment/server/routes/ \;
+        fi
+        
+        # Copy util files if they exist
+        if [ -d "server/utils" ]; then
+          find server/utils -name "*.js" -exec cp {} deployment/server/utils/ \;
+        fi
         
         # Copy client files
-        cp -r client/* deployment/client/ || true
+        cp -r client/* deployment/client/
         
         # Create environment file
         cat > deployment/.env << EOL
@@ -80,6 +132,18 @@ jobs:
                 <rule name="StaticContent">
                   <match url="^(?!api)(.*)$" />
                   <action type="Rewrite" url="client/{R:1}"/>
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True" />
+                    <add input="client/{R:1}" matchType="IsFile" />
+                  </conditions>
+                </rule>
+                <rule name="SPA Routes">
+                  <match url=".*" />
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True" />
+                    <add input="{REQUEST_URI}" pattern="^/api" negate="True" />
+                  </conditions>
+                  <action type="Rewrite" url="client/index.html" />
                 </rule>
                 <rule name="API">
                   <match url="^api/(.*)$" />
@@ -96,6 +160,163 @@ jobs:
         </configuration>
         EOL
     
+    - name: Create Debug Route
+      run: |
+        cat > deployment/server/routes/debug.js << 'EOL'
+        import express from 'express';
+        import path from 'path';
+        import fs from 'fs';
+        import { fileURLToPath } from 'url';
+
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        const router = express.Router();
+
+        router.get('/info', (req, res) => {
+          const info = {
+            currentDirectory: process.cwd(),
+            serverDirectory: __dirname,
+            nodeVersion: process.version,
+            environment: process.env.NODE_ENV,
+            files: {
+              serverRoot: fs.readdirSync(path.join(__dirname, '..')).filter(f => !f.startsWith('.')),
+              routes: fs.existsSync(path.join(__dirname)) ? fs.readdirSync(__dirname).filter(f => !f.startsWith('.')) : [],
+              data: fs.existsSync(path.join(__dirname, '../data')) ? fs.readdirSync(path.join(__dirname, '../data')).filter(f => !f.startsWith('.')) : []
+            }
+          };
+          res.json(info);
+        });
+
+        export default router;
+        EOL
+
+    - name: Update app.js to include debug route
+      run: |
+        cat > deployment/server/app.js << 'EOL'
+        import express from 'express';
+        import bodyParser from 'body-parser';
+        import cors from 'cors';
+        import dotenv from 'dotenv';
+        import path from 'path';
+        import fs from 'fs';
+        import { fileURLToPath } from 'url';
+        import helmet from 'helmet';
+
+        // ES Module equivalent of __dirname
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+
+        // Load environment variables from parent directory first then local
+        dotenv.config({ 
+          path: path.resolve(__dirname, '../.env') 
+        });
+        dotenv.config({ 
+          path: path.resolve(__dirname, '.env') 
+        });
+
+        console.log('Initializing app.js...');
+        console.log('Current directory:', process.cwd());
+        console.log('Server directory:', __dirname);
+
+        // Ensure critical directories exist
+        try {
+          const logsDir = path.join(__dirname, 'logs');
+          const dataDir = path.join(__dirname, 'data');
+          
+          [logsDir, dataDir].forEach(dir => {
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+              console.log(`Created directory: ${dir}`);
+            }
+          });
+        } catch (err) {
+          console.error('Failed to create necessary directories:', err);
+        }
+
+        // Create Express app
+        const app = express();
+
+        // Basic configuration
+        app.disable('x-powered-by');
+        app.set('trust proxy', true);
+
+        // Middleware
+        app.use(cors());
+        app.use(helmet({
+          contentSecurityPolicy: false
+        }));
+        app.use(bodyParser.json({ limit: '10kb' }));
+        app.use(bodyParser.urlencoded({ extended: true, limit: '10kb' }));
+
+        // Static file serving
+        app.use(express.static(path.join(__dirname, '../client')));
+
+        // Import debug route
+        import debugRoutes from './routes/debug.js';
+
+        // Debug API route
+        app.use('/api/debug', debugRoutes);
+
+        // Try to import other routes if they exist
+        let authRoutes, surveyRoutes, adminRoutes;
+        try {
+          const authRoutePath = path.join(__dirname, 'routes', 'auth.js');
+          const surveyRoutePath = path.join(__dirname, 'routes', 'survey.js');
+          const adminRoutePath = path.join(__dirname, 'routes', 'admin.js');
+          
+          if (fs.existsSync(authRoutePath)) {
+            authRoutes = await import('./routes/auth.js');
+            app.use('/api/auth', authRoutes.default);
+            console.log('Auth routes loaded');
+          }
+          
+          if (fs.existsSync(surveyRoutePath)) {
+            surveyRoutes = await import('./routes/survey.js');
+            app.use('/api/survey', surveyRoutes.default);
+            console.log('Survey routes loaded');
+          }
+          
+          if (fs.existsSync(adminRoutePath)) {
+            adminRoutes = await import('./routes/admin.js');
+            app.use('/api/admin', adminRoutes.default);
+            console.log('Admin routes loaded');
+          }
+        } catch (error) {
+          console.error('Error loading routes:', error);
+        }
+
+        // Root and health check routes
+        app.get('/', (req, res) => {
+          res.sendFile(path.join(__dirname, '../client', 'index.html'));
+        });
+
+        app.get('/health', (req, res) => {
+          res.status(200).json({
+            status: 'healthy',
+            version: process.env.npm_package_version || '1.0.0',
+            nodeVersion: process.version,
+            uptime: process.uptime(),
+            routes: {
+              debug: true,
+              auth: !!authRoutes,
+              survey: !!surveyRoutes,
+              admin: !!adminRoutes
+            }
+          });
+        });
+
+        // 404 handler
+        app.use((req, res) => {
+          res.status(404).json({
+            success: false,
+            message: 'Endpoint not found',
+            requestedUrl: req.url
+          });
+        });
+
+        export default app;
+        EOL
+
     - name: Create Deployment Package
       run: |
         cd deployment
@@ -135,15 +356,18 @@ jobs:
         echo "Waiting for deployment to stabilize..."
         sleep 60  # Increased initial wait time
         
-        # Check app logs
+        # Check app logs - fixed curl command format
         echo "Checking application logs..."
-        curl -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" \
-             "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
+        curl --http1.1 -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
+        
+        # Check debug info first
+        echo "Checking debug info..."
+        curl -s "https://caa-cf-review.azurewebsites.net/api/debug/info" || echo "Debug route not available yet"
         
         # Perform health check with more information
         for i in {1..5}; do
           echo "Health check attempt $i of 5..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://caa-cf-review.azurewebsites.net/health)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://caa-cf-review.azurewebsites.net/health" || echo "failed")
           if [ "$STATUS" = "200" ]; then
             echo "✅ Health check passed"
             exit 0
@@ -158,6 +382,5 @@ jobs:
         
         echo "❌ Health check failed after 5 attempts"
         echo "Fetching recent logs..."
-        curl -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" \
-             "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
+        curl --http1.1 -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
         exit 1
