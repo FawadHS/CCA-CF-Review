@@ -35,15 +35,15 @@ jobs:
       working-directory: ./server
       run: |
         echo "Installing server dependencies..."
-        npm install --no-audit
+        npm install --no-audit --legacy-peer-deps
         npm run lint:fix || true
         
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
         echo "Installing client dependencies..."
-        npm install --no-audit
-        npm run lint || echo "Linting issues found but continuing build"
+        npm install --no-audit --legacy-peer-deps
+        npm run lint || true
 
     - name: Prepare Deployment Package
       run: |
