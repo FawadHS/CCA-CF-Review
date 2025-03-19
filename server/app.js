@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import winston from 'winston';
 import crypto from 'crypto';
+import axios from 'axios';
 
 // ES Module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -82,11 +83,15 @@ app.set('trust proxy', true);
 
 // Comprehensive CORS configuration
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  origin: [
+    'https://caa-cf-review.azurewebsites.net',
+    'http://localhost:3000',
+    'http://localhost:8080'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  optionsSuccessStatus: 200
+  maxAge: 86400 // 24 hours
 };
 
 // Advanced rate limiting
@@ -110,8 +115,8 @@ const helmetConfig = {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'"]
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://caa-cf-review.azurewebsites.net"]
     }
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
@@ -229,5 +234,37 @@ app.use((req, res) => {
     requestedUrl: req.url
   });
 });
+
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://caa-cf-review.azurewebsites.net/api'
+  : 'http://localhost:8080/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default app;
