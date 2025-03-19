@@ -25,6 +25,10 @@ jobs:
       working-directory: ./server
       run: npm ci --production
     
+    - name: Install Client Dependencies
+      working-directory: ./client
+      run: npm ci --production
+
     - name: Prepare Deployment Package
       run: |
         mkdir -p deployment/server
@@ -116,5 +120,12 @@ jobs:
         sleep 30
         curl -f https://caa-cf-review.azurewebsites.net/health || {
           echo "Health check failed. Deployment may have issues."
+          exit 1
+        }
+
+    - name: Verify Deployment Logs
+      run: |
+        curl -f https://caa-cf-review.azurewebsites.net/api/test || {
+          echo "API test failed. Potential issues with the API layer."
           exit 1
         }
