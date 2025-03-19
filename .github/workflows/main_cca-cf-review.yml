@@ -36,11 +36,18 @@ jobs:
     - name: Install Server Dependencies
       working-directory: ./server
       run: |
-        if [ ! -f "package-lock.json" ]; then
-          echo "No package-lock.json found, running npm install first"
-          npm install --no-audit
+        if [ -f "package-lock.json" ]; then
+          echo "Installing dependencies using npm ci"
+          npm ci
         else
-          npm ci --no-audit
+          echo "No package-lock.json found, running npm install"
+          npm install
+          # Commit the generated package-lock.json
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add package-lock.json
+          git commit -m "Add package-lock.json [skip ci]" || echo "No changes to commit"
+          git push || echo "Could not push changes"
         fi
         # Run lint in warning mode only
         npm run lint:fix || true
@@ -48,11 +55,18 @@ jobs:
     - name: Install Client Dependencies
       working-directory: ./client
       run: |
-        if [ ! -f "package-lock.json" ]; then
-          echo "No package-lock.json found, running npm install first"
-          npm install --no-audit
+        if [ -f "package-lock.json" ]; then
+          echo "Installing dependencies using npm ci"
+          npm ci
         else
-          npm ci --no-audit
+          echo "No package-lock.json found, running npm install"
+          npm install
+          # Commit the generated package-lock.json
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add package-lock.json
+          git commit -m "Add package-lock.json [skip ci]" || echo "No changes to commit"
+          git push || echo "Could not push changes"
         fi
         npm run lint || echo "Linting issues found but continuing build"
 
