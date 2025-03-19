@@ -195,15 +195,10 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.status(200).json({
-    status: 'UP',
-    version: process.version,
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString(),
-    deploymentInfo: {
-      platform: 'Azure Web App',
-      resourceGroup: 'rg-iah-dev-gau-cca-cf',
-      domain: 'caa-cf-review.azurewebsites.net'
-    }
+    status: 'healthy',
+    version: process.env.npm_package_version,
+    nodeVersion: process.version,
+    uptime: process.uptime()
   });
 });
 

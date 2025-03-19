@@ -123,6 +123,7 @@ jobs:
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
+      id: deploy
       with:
         app-name: 'caa-cf-review'
         slot-name: 'Production'
@@ -132,14 +133,31 @@ jobs:
     - name: Post-Deployment Health Check
       run: |
         echo "Waiting for deployment to stabilize..."
-        sleep 45
-        for i in {1..3}; do
-          if curl -f https://caa-cf-review.azurewebsites.net/health; then
+        sleep 60  # Increased initial wait time
+        
+        # Check app logs
+        echo "Checking application logs..."
+        curl -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" \
+             "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
+        
+        # Perform health check with more information
+        for i in {1..5}; do
+          echo "Health check attempt $i of 5..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://caa-cf-review.azurewebsites.net/health)
+          if [ "$STATUS" = "200" ]; then
             echo "✅ Health check passed"
             exit 0
           fi
-          echo "Attempt $i failed, retrying..."
-          sleep 20
+          echo "Received status code: $STATUS"
+          if [ "$STATUS" = "503" ]; then
+            echo "Application is still starting up..."
+          fi
+          echo "Waiting 30 seconds before retry..."
+          sleep 30
         done
-        echo "❌ Health check failed after 3 attempts"
+        
+        echo "❌ Health check failed after 5 attempts"
+        echo "Fetching recent logs..."
+        curl -H "Authorization: Bearer ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" \
+             "https://caa-cf-review.scm.azurewebsites.net/api/vfs/LogFiles/Application/stdout.log" || true
         exit 1
