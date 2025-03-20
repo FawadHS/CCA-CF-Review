@@ -3,48 +3,95 @@ name: Azure Web App Deployment
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  NODE_ENV: production
+  AZURE_WEBAPP_NAME: caa-cf-review
+  AZURE_WEBAPP_URL: https://caa-cf-review.azurewebsites.net
+  DEPLOY_PATH: deployment
+
 jobs:
   build:
-    runs-on: windows-latest  # Changed to Windows for IIS deployment
-
+    runs-on: windows-latest
+    
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
+        cache: 'npm'
 
     - name: Install Dependencies
+      shell: pwsh
       run: |
-        cd server
-        npm ci
-        cd ../client
-        npm ci
+        Write-Host "::group::Installing Dependencies"
         
-    - name: Create Config
-      run: |
-        if (-not (Test-Path "server/config/config.json")) {
-          $config = @{
-            environment = "production"
-            port = 8080
-          }
-          $config | ConvertTo-Json | Set-Content "server/config/config.json"
-        }
+        Write-Host "Installing server dependencies..."
+        cd server
+        npm ci --no-audit --no-fund
+        
+        Write-Host "Installing client dependencies..."
+        cd ../client
+        npm ci --no-audit --no-fund
+        
+        Write-Host "::endgroup::"
 
     - name: Build Client
+      shell: pwsh
       run: |
+        Write-Host "::group::Building Client"
         cd client
         npm run build
+        
+        if ($LASTEXITCODE -ne 0) {
+          throw "Client build failed with exit code $LASTEXITCODE"
+        }
+        Write-Host "::endgroup::"
 
     - name: Create Deployment Package
+      shell: pwsh
       run: |
-        # Run deployment script
+        Write-Host "::group::Creating Deployment Package"
+        
+        # Verify required files
+        $required = @('deploy.ps1', 'web.config')
+        foreach ($file in $required) {
+          if (-not (Test-Path $file)) {
+            throw "Missing required file: $file"
+          }
+        }
+        
+        # Create production config
+        $config = @{
+          environment = "production" 
+          port = 8080
+          apiUrl = "${{ env.AZURE_WEBAPP_URL }}/api"
+          security = @{
+            sessionTimeout = 3600
+            maxLoginAttempts = 5
+          }
+        }
+        
+        New-Item -ItemType Directory -Force -Path server/config | Out-Null
+        $config | ConvertTo-Json -Depth 10 | Set-Content server/config/config.json
+        
+        # Create deployment package
         ./deploy.ps1
+        if (-not (Test-Path release.zip)) {
+          throw "Deployment package creation failed"
+        }
+        
+        Write-Host "::endgroup::"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -52,13 +99,15 @@ jobs:
         name: release
         path: release.zip
         retention-days: 5
+        if-no-files-found: error
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     environment:
       name: Production
-      url: https://caa-cf-review.azurewebsites.net
+      url: ${{ env.AZURE_WEBAPP_URL }}
 
     steps:
     - name: Download Artifact
@@ -66,43 +115,46 @@ jobs:
       with:
         name: release
 
-    - name: Deploy to Azure Web App
+    - name: Deploy to Azure
       uses: azure/webapps-deploy@v2
       with:
-        app-name: 'caa-cf-review'
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
         slot-name: 'Production'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: release.zip
 
-    - name: Health Check
+    - name: Verify Deployment
+      shell: pwsh
       run: |
-        Write-Host "Waiting for deployment to stabilize..."
-        Start-Sleep -Seconds 60
-
+        Write-Host "::group::Verifying Deployment"
+        Start-Sleep -Seconds 30
+        
         $maxAttempts = 5
         $attempt = 1
-        $healthUrl = "https://caa-cf-review.azurewebsites.net/health"
-
-        while ($attempt -le $maxAttempts) {
+        $success = $false
+        
+        do {
           Write-Host "Health check attempt $attempt of $maxAttempts"
-          
           try {
-            $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing
+            $response = Invoke-WebRequest -Uri "${{ env.AZURE_WEBAPP_URL }}/health" -UseBasicParsing -TimeoutSec 30
             if ($response.StatusCode -eq 200) {
-              Write-Host "✅ Health check passed"
-              exit 0
+              $success = $true
+              Write-Host "✅ Deployment verified successfully"
+              break
             }
           }
           catch {
-            Write-Host "Health check failed: $_"
+            Write-Host "❌ Health check failed: $($_.Exception.Message)"
+            if ($attempt -lt $maxAttempts) {
+              Write-Host "Waiting before retry..."
+              Start-Sleep -Seconds 30
+            }
           }
-
           $attempt++
-          if ($attempt -le $maxAttempts) {
-            Write-Host "Waiting 30 seconds before retry..."
-            Start-Sleep -Seconds 30
-          }
+        } while ($attempt -le $maxAttempts)
+        
+        Write-Host "::endgroup::"
+        
+        if (-not $success) {
+          throw "Deployment verification failed after $maxAttempts attempts"
         }
-
-        Write-Host "❌ Health check failed after $maxAttempts attempts"
-        exit 1
