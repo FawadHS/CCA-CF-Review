@@ -1,5 +1,35 @@
-# Node.js dependencies
+# Dependencies
 node_modules/
+.npm/
+
+# Build outputs
+deployment/
+deployment-secure/
+verify/
+release.zip
+
+# Environment & config
+.env
+.env.*
+server/config/*.json
+!server/config/config.example.json
+
+# Data files
+server/data/*.json
+private/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Node.js dependencies
 server/node_modules/
 client/node_modules/
 
@@ -9,17 +39,8 @@ client/node_modules/
 client/build/
 client/dist/
 
-# Environment files
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
 # Log files
 logs/
-*.log
-npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
@@ -30,25 +51,18 @@ pids/
 *.pid.lock
 
 # Dependency cache
-.npm
 .eslintcache
 
 # Azure and deployment
 .deployment
-.vscode/
 
 # Temporary build artifacts
 .azure/
 tmp/
-deployment/
-release.zip
 
 # Testing
 /coverage/
 /nyc_output/
-
-# Optional npm cache directory
-.npm
 
 # Yarn Integrity file
 .yarn-integrity
@@ -66,13 +80,7 @@ Desktop.ini
 
 # Editor directories and files
 .idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.sw?
 
 # Ensure essential config files and workflows are included
-!server/config/config.json
 !.github/workflows/*

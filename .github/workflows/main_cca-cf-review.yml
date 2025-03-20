@@ -150,7 +150,7 @@ jobs:
               Start-Sleep -Seconds 30
             }
           }
-          $attempt++ 
+          $attempt++
         } while ($attempt -le $maxAttempts)
         
         Write-Host "::endgroup::"
